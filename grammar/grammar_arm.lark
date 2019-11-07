@@ -8,34 +8,31 @@ operand: (reglist
         | register
         | immediate 
         | address 
-        | variable
+        | label_target
         | indirect
-        | dec_val
         | dotlabel
         | proc_load ) writeback?
 
 
 
-dotlabel: "." CNAME
+dotlabel: DOTLABEL 
+DOTLABEL: "." CNAME
 reglist: "{" (register | register_range)+ "}"
 register_range: register "-" register
 indirect: "[" register offset? "]"
 offset: NUMBER | SIGNED_NUMBER
-immediate: "#" imm_value
+immediate: imm_value | ("#" imm_value)
 address: "=" imm_value
-imm_value:
-        | hex_val
-        | dec_val
-hex_val .2 : HEXINT
-dec_val: NUMBER | SIGNED_NUMBER
-variable: CNAME
+?imm_value:  hex_val | dec_val
+hex_val.2: "0x" HEXDIGIT+
+?dec_val: NUMBER | SIGNED_NUMBER
+label_target: CNAME | DOTLABEL
 opcode: CNAME
-proc_load: ":" mode ":" target
-target: dotlabel | CNAME
+proc_load: ":" mode ":" label_target
+target: dotlabel | label_target
 mode: MODE 
 MODE: "lo12" | "pg_hi21"
 
-HEXINT: "0x" HEXDIGIT+
 %import common.CNAME
 %import common.SIGNED_NUMBER
 %import common.DIGIT
@@ -45,10 +42,10 @@ HEXINT: "0x" HEXDIGIT+
 %import common.WS
 %import common.WS_INLINE
 %import common.NEWLINE
-%import .arm_globals.addr_mode
-%import .arm_globals.register
-%import .arm_globals.writeback
-%import .arm_globals.condition_code
+%import .grammar.arm_globals.addr_mode
+%import .grammar.arm_globals.register
+%import .grammar.arm_globals.writeback
+%import .grammar.arm_globals.condition_code
 COMMENT: ";" /[^\n]/*
 %ignore WS
 %ignore COMMENT
