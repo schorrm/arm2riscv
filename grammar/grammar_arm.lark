@@ -1,0 +1,55 @@
+start: directive? label? operation?
+label: LABEL
+LABEL: CNAME ":"
+operation: opcode operand*
+directive: /\..*/
+
+operand: (reglist 
+        | register
+        | immediate 
+        | address 
+        | variable
+        | indirect
+        | dec_val
+        | dotlabel
+        | proc_load ) writeback?
+
+
+
+dotlabel: "." CNAME
+reglist: "{" (register | register_range)+ "}"
+register_range: register "-" register
+indirect: "[" register offset? "]"
+offset: NUMBER | SIGNED_NUMBER
+immediate: "#" imm_value
+address: "=" imm_value
+imm_value:
+        | hex_val
+        | dec_val
+hex_val .2 : HEXINT
+dec_val: NUMBER | SIGNED_NUMBER
+variable: CNAME
+opcode: CNAME
+proc_load: ":" mode ":" target
+target: dotlabel | CNAME
+mode: MODE 
+MODE: "lo12" | "pg_hi21"
+
+HEXINT: "0x" HEXDIGIT+
+%import common.CNAME
+%import common.SIGNED_NUMBER
+%import common.DIGIT
+%import common.NUMBER
+%import common.LETTER
+%import common.HEXDIGIT
+%import common.WS
+%import common.WS_INLINE
+%import common.NEWLINE
+%import .arm_globals.addr_mode
+%import .arm_globals.register
+%import .arm_globals.writeback
+%import .arm_globals.condition_code
+COMMENT: ";" /[^\n]/*
+%ignore WS
+%ignore COMMENT
+%ignore ","

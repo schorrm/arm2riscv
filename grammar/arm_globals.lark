@@ -1,0 +1,50 @@
+addr_mode: ADDR_MODE
+ADDR_MODE: "IA"
+    | "IB"
+    | "DA"
+    | "DB"
+
+// addr_mode: 
+//     | "IA" -> ia
+//     | "IB" -> ib
+//     | "DA" -> da
+//     | "DB" -> db
+
+writeback: "!"
+
+condition_code: CCODE
+
+CCODE: "EQ" // Z set	Equal
+    | "NE" // Z clear	Not equal
+    | "CS" // or HS	C set	Higher or same (unsigned >= )
+    | "CC" // or LO	C clear	Lower (unsigned < )
+    | "MI" // N set	Negative
+    | "PL" // N clear	Positive or zero
+    | "VS" // V set	Overflow
+    | "VC" // V clear	No overflow
+    | "HI" // C set and Z clear	Higher (unsigned >)
+    | "LS" // C clear or Z set	Lower or same (unsigned <=)
+    | "GE" // N and V the same	Signed >=
+    | "LT" // N and V differ	Signed <
+    | "GT" // Z clear, N and V the same	Signed >
+    | "LE" // Z set, N and V differ	Signed <=
+    | "AL" // Any	Always. This suffix is normally omitted.
+
+
+register: HI_REG | LO_REG | NAMED_REG
+
+LO_REG: "w" + NUMBER | "wzr"
+HI_REG: "x" + NUMBER | "xzr"
+
+NAMED_REG: "sp" | "fp" | "lr" | "xr"
+
+
+
+%import common.CNAME
+%import common.DIGIT
+%import common.NUMBER
+%import common.LETTER
+%import common.HEXDIGIT
+%import common.WS
+%import common.WS_INLINE
+%import common.NEWLINE
