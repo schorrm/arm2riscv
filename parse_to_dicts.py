@@ -13,10 +13,18 @@ with open('grammar/grammar_arm.lark') as f:
 
 l = Lark(grammar, parser='earley')
 
+
+ops = set()
 for line in sys.stdin:
     tree = l.parse(line)
-    
     print()
     print(line)
-    print(transformer.transform(tree))
+    d = transformer.transform(tree)
+    print(d)
     print()
+
+    if 'operation' in d.keys():
+        ops.add(d['operation']['opcode'])
+
+for i, o in enumerate(ops, 1):
+    print(i, o, sep='\t')

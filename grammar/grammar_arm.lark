@@ -44,6 +44,8 @@ MODE: "lo12" | "pg_hi21"
 %import common.NEWLINE
 %import .grammar.arm_globals.addr_mode
 %import .grammar.arm_globals.register
+%import .grammar.arm_globals.half_reg
+%import .grammar.arm_globals.full_reg
 %import .grammar.arm_globals.writeback
 %import .grammar.arm_globals.condition_code
 COMMENT: ";" /[^\n]/*

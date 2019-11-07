@@ -31,10 +31,12 @@ CCODE: "EQ" // Z set	Equal
     | "AL" // Any	Always. This suffix is normally omitted.
 
 
-register: HI_REG | LO_REG | NAMED_REG
+register: half_reg | full_reg
 
-LO_REG: "w" + NUMBER | "wzr"
-HI_REG: "x" + NUMBER | "xzr"
+half_reg: HALFREG 
+HALFREG: "w" + NUMBER | "wzr"
+full_reg:  FULLREG
+FULLREG: "x" + NUMBER | "xzr" | NAMED_REG
 
 NAMED_REG: "sp" | "fp" | "lr" | "xr"
 
