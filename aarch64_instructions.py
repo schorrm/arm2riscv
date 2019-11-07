@@ -2,8 +2,9 @@
 
 """
 Classes:
-LoadRegisterByte
-UnsignedMultiplyAddLong
+LDRB LoadRegisterByte
+UMADDL UnsignedMultiplyAddLong
+BL BranchAndLink
 
 """
 
@@ -25,15 +26,15 @@ class LoadRegisterByte(ArmInstruction):
         if 'offset' in operands[1].keys():
             offset = operands[1].offset
             self.riscv_instructions = [
-                'LB {dest} , {offset}({src})'
+                'lb {dest} , {offset}({src})'
             ]
             if writeback:
                 self.riscv_instructions.append([
-                    'ADDI {src}, {offset}'
+                    'add {src}, {offset}'
                 ])
         else:
             self.riscv_instructions = [
-                'LB {dest}, ({src})'
+                'lb {dest}, ({src})'
             ]        
     
 class UnsignedMultiplyAddLong(ArmInstruction):
@@ -50,9 +51,19 @@ class UnsignedMultiplyAddLong(ArmInstruction):
         temp = self.temp_regs[0]
         dest, wm, wn, xa = self.specific_regs
         self.riscv_instructions = [
-            f'MULW {temp}, {wm}, {wn}',
-            f'ADD {dest}, {xa}, {temp}'
+            f'mulw {temp}, {wm}, {wn}',
+            f'add {dest}, {xa}, {temp}'
         ]
         
         
+class BranchAndLink(ArmInstruction):
+    opcodes = ['bl']
+
+    def __init__(self, operands):
+        super().__init__()
+        label = operands[0]
+        self.riscv_instructions = [
+            'call {label}'
+        ]
+
     

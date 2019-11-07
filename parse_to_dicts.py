@@ -4,6 +4,7 @@
 
 from lark import Lark, Transformer
 from convert_parse_tree import TreeToDict
+from register_map import register_map
 import sys
 
 transformer = TreeToDict()

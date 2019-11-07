@@ -6,7 +6,7 @@ from lark import Lark, Transformer
 class TreeToDict(Transformer):
     def register(self, r):
         (r,) = r
-        return {'register': str(r)}
+        return r
     def offset(self, n):
         (n,) = n
         return {'offset': int(n)}
@@ -52,3 +52,21 @@ class TreeToDict(Transformer):
             'mode' : mode,
             'label' : label
         }}
+    def label(self, l):
+        (l,) = l
+        return {'label': l}
+
+    def half_reg(self, r):
+        (r,) = r
+        return {
+            'register': str(r),
+            'half_width': True
+        }
+    def full_reg(self, r):
+        (r,) = r
+        return {
+            'register': str(r),
+            'half_width': False
+        }
+
+    
