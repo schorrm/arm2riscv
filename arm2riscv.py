@@ -42,7 +42,7 @@ for line in sys.stdin:
     if 'operation' in d.keys():
         opcode = d['operation']['opcode']
         if opcode not in instructions.keys():
-            raise InstructionNotRecognized()
+            raise InstructionNotRecognized(opcode)
             buffer.append(line + 'XXXXX')
             continue
 
