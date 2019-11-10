@@ -223,3 +223,91 @@ class Return(Arm64Instruction):
         super().__init__(operands)
         self.riscv_instructions = ['ret']
         
+class Multiply(Arm64Instruction):
+    opcodes = ['mul']
+
+    # TODO: check type safety!
+    def __init__(self, operands):
+        super().__init__(operands)
+        regs = [x['register'] for x in operands[:3]]
+        xd, xa, xb = regs
+        self.specific_regs = [xd, xa, xb]
+
+    def emit_riscv(self):
+        xd, xa, xb = self.specific_regs
+        self.riscv_instructions = [
+            f'mulw {xd}, {xa}, {xb}'
+        ]
+
+
+class StoreRegister(Arm64Instruction):
+    opcodes = ['str']
+
+    def __init__(self, operands):
+        super().__init__(operands)
+
+        r1, sp = operands[:2]
+
+        # Becomes either SW or SD, depending on reg width
+        self.base_op = 'SW' if r1['half_width'] else 'SD'
+        
+        self.offset = 0
+        if 'offset' in sp.keys():
+            self.offset = sp['offset']
+        if len(operands) == 3:
+            post_index = True
+            self.final_offset = operands[3]['immediate']
+        elif sp['writeback']:
+            pre_index  = True
+            self.final_offset = sp['offset']
+        else: # Signed Offset
+            self.final_offset = None
+
+        self.specific_regs = [r1['register'],  sp['register']]
+
+    def emit_riscv(self):
+        r1, sp = self.specific_regs
+        self.riscv_instructions = [
+            f'{self.base_op} {r1}, {self.offset}({sp})',
+        ]
+
+        if self.final_offset:
+            self.riscv_instructions.append(
+                f'addi {sp}, {sp}, {self.final_offset}'
+            )
+
+class LoadRegister(Arm64Instruction):
+    opcodes = ['ldr']
+
+    def __init__(self, operands):
+        super().__init__(operands)
+
+        r1, sp = operands[:2]
+
+        # Becomes either SW or SD, depending on reg width
+        self.base_op = 'LW' if r1['half_width'] else 'LD'
+        
+        self.offset = 0
+        if 'offset' in sp.keys():
+            self.offset = sp['offset']
+        if len(operands) == 3:
+            post_index = True
+            self.final_offset = operands[3]['immediate']
+        elif sp['writeback']:
+            pre_index  = True
+            self.final_offset = sp['offset']
+        else: # Signed Offset
+            self.final_offset = None
+
+        self.specific_regs = [r1['register'],  sp['register']]
+
+    def emit_riscv(self):
+        r1, sp = self.specific_regs
+        self.riscv_instructions = [
+            f'{self.base_op} {r1}, {self.offset}({sp})',
+        ]
+
+        if self.final_offset:
+            self.riscv_instructions.append(
+                f'addi {sp}, {sp}, {self.final_offset}'
+            )
