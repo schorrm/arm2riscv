@@ -9,3 +9,8 @@ Arm AArch64 to RISC-V Transpiler
 ## Test Suite
 
 `python3 test_suite.py` runs the testing.
+
+## Dependencies
+
+- Lark
+- tqdm (tests)
