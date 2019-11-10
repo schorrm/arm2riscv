@@ -15,7 +15,7 @@ class TreeToDict(Transformer):
         return int(v, 16)
     def immediate(self, d):
         (d,) = d
-        return int(d)
+        return {'immediate' : int(d)}
     def opcode(self, o):
         (o,) = o
         return {'opcode': str(o)}

@@ -61,4 +61,10 @@ register_map = {'x0': 'x10',
  'pc': 'pc',
  'wzr': 'x0',
  'xzr': 'x0',
- 'lr': 'ra'}
+ 'lr': 'ra',
+ 'temp': 'x3'
+ }
+
+mode_map = {
+    'lo12' : 'lo'
+}
