@@ -9,7 +9,9 @@ class TreeToDict(Transformer):
         return r
     def offset(self, n):
         (n,) = n
-        return {'offset': int(n)}
+        if 'immediate' in n.keys():
+            n = n['immediate']
+        return {'offset': n}
     def hex_val(self, v):
         (v,) = v
         return int(v, 16)

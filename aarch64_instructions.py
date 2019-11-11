@@ -223,7 +223,10 @@ class Return(Arm64Instruction):
     def __init__(self, operands):
         super().__init__(operands)
         self.riscv_instructions = ['ret']
-        
+
+
+# TODO: This class is a lot like Anthony Weiner. There are disasters
+# wait to happen with sexts. Sign extension / overflow could be iffy
 class Multiply(Arm64Instruction):
     opcodes = ['mul']
 
@@ -312,3 +315,79 @@ class LoadRegister(Arm64Instruction):
             self.riscv_instructions.append(
                 f'addi {sp}, {sp}, {self.final_offset}'
             )
+
+
+class Subtract(Arm64Instruction):
+    # may get subs too
+    opcodes = ['sub']
+
+    def __init__(self, operands):
+        super().__init__(operands)
+        dest, s1, s2 = operands
+        self.op = 'subw' if dest['half_width'] else 'sub'
+        self.specific_regs = [dest['register'], s1['register']]
+        if 'register' not in s2.keys():
+            self.immediate = True 
+            if 'label' in s2.keys():
+                self.s2 = s2['label']
+                # TODO: FIX
+                # undefined behavior for now
+            elif 'immediate' in s2.keys():
+                self.s2 = s2['immediate']
+            self.s2 = -self.s2 # invert the sign! now an add
+            self.op = 'addiw' if dest['half_width'] else 'addi'
+        else:
+            self.immediate = False
+            self.specific_regs.append(s2['register'])
+
+    def emit_riscv(self):
+        dest, s1, *xsource = self.specific_regs
+        if not self.immediate:
+            self.s2 = xsource[0]
+        self.riscv_instructions = [
+            f'{self.op} {dest}, {s1}, {self.s2}'
+        ]
+
+class Branch(Arm64Instruction):
+    opcodes = ['b']
+    # add conditionals to here? or separately?
+
+    def __init__(self, operands):
+        super().__init__(operands)
+        target = operands[0]['label']
+        self.riscv_instructions = [
+            f'j {target}'
+        ]
+
+class LogicalShiftLeft(Arm64Instruction):
+    opcodes = ['lsl']
+    # May need to be fed into by implied shifts in OP2, tbd
+
+    def __init__(self, operands):
+        super().__init__(operands)
+
+        dest, r1, r2 = operands
+        wflag = 'W' if dest['half_width'] else ''
+        dest = dest['register']
+        dest = r1['register']
+        self.specific_regs = [dest, r1]
+        if 'register' in r2.keys():
+            r2 = r2['register']
+            self.specific_regs.append(r2)
+            self.immediate = False
+        else:
+            self.immediate_op = r2['immediate']
+            self.immediate = True
+        
+        self.op = 'slli' if self.immediate else 'sll'
+        self.op += wflag
+    
+    def emit_riscv(self):
+        dest, s1, *xsource = self.specific_regs
+        if not self.immediate:
+            self.s2 = xsource[0]
+        else:
+            self.s2 = self.immediate_op
+        self.riscv_instructions = [
+            f'{self.op} {dest}, {s1}, {self.s2}'
+        ]

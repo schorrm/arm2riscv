@@ -67,6 +67,6 @@ for line in buffer:
     if Arm64Instruction in type(line).__mro__:
         line.emit_riscv()
         for l in line.riscv_instructions:
-            print(f'\t{l}'.lower()) # style for now
+            print(f'\t{l}') 
     else:
         print(line.strip())
