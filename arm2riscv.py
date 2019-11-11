@@ -51,6 +51,10 @@ for line in sys.stdin:
     else:
         buffer.append(line)
 
+# Remove arch directive
+if buffer[0].strip().startswith('.arch'):
+    buffer.pop(0)
+
 # second pass: convert registers
 for line in buffer:
     if Arm64Instruction in type(line).__mro__:
@@ -59,10 +63,10 @@ for line in buffer:
 
 
 # third pass: emit
-for line in buffer[1:]:
+for line in buffer:
     if Arm64Instruction in type(line).__mro__:
         line.emit_riscv()
         for l in line.riscv_instructions:
-            print(f'\t{l}')
+            print(f'\t{l}'.lower()) # style for now
     else:
         print(line.strip())

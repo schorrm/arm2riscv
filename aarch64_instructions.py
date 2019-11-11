@@ -11,6 +11,9 @@ MOV Move
 STP StorePair
 LDP LoadPair
 RET Return
+STR StoreRegister
+LDR LoadRegister
+MUL Multiply
 """
 
 # Master Arm64Instruction Class, all others inherit from here
@@ -86,8 +89,6 @@ class Add(Arm64Instruction):
                 self.s2 = s2['label']
             elif 'immediate' in s2.keys():
                 self.s2 = s2['immediate']
-            else:
-                print('whoa!', s2)
         else:
             self.s2 = False
             self.specific_regs.append(s2['register'])
