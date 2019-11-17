@@ -20,18 +20,18 @@ DOTLABEL: "." CNAME
 reglist: "{" (register | register_range)+ "}"
 register_range: register "-" register
 indirect: "[" register offset? "]"
-offset: NUMBER | SIGNED_NUMBER
-immediate: imm_value | ("#" imm_value)
+offset: immediate | proc_load | register
+immediate: imm_value  | "#" imm_value
 address: "=" imm_value
 ?imm_value:  hex_val | dec_val
 hex_val.2: "0x" HEXDIGIT+
 ?dec_val: NUMBER | SIGNED_NUMBER
 label_target: CNAME | DOTLABEL
 opcode: CNAME
-proc_load: ":" mode ":" label_target
+proc_load: ":" mode ":" label_target | "#:" mode ":" label_target
 target: dotlabel | label_target
-mode: MODE 
-MODE: "lo12" | "pg_hi21"
+mode: CNAME
+// MODE: "lo12" | "pg_hi21"
 
 %import common.CNAME
 %import common.SIGNED_NUMBER

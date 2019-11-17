@@ -4,9 +4,15 @@
 
 from lark import Lark, Transformer
 from convert_parse_tree import TreeToDict
-from register_map import register_map, mode_map
+from register_map import abi_register_map, mode_map
 import sys
 from utils import *
+
+register_map = {}
+for k, v in abi_register_map.items():
+    register_map[k] = v
+    if k.startswith('x'):
+        register_map['w'+k[1:]] = v
 
 from aarch64_instructions import Arm64Instruction
 
@@ -14,9 +20,19 @@ def cleanup(operand):
     operand['operand']['writeback'] = operand['writeback']
     operand = operand['operand']
     if 'proc_load' in operand.keys():
+        operand['original_mode'] = operand['proc_load']['mode']
         mode = mode_map[operand['proc_load']['mode']]
         label = operand['proc_load']['label']['label']
         operand['label'] = f'%{mode}({label})'
+        operand['is_load'] = True
+    elif 'offset' in operand.keys():
+        if type(operand['offset']) == dict:
+            if 'proc_load' in operand['offset'].keys():
+                operand['original_mode'] = operand['offset']['proc_load']['mode']
+                mode = mode_map[operand['offset']['proc_load']['mode']]
+                label = operand['offset']['proc_load']['label']['label']
+                operand['offset'] = f'%{mode}({label})'
+            
     return operand
 
 instructions = {}
@@ -47,7 +63,7 @@ for line in sys.stdin:
             continue
 
         operands = [cleanup(operand) for operand in d['operation']['operands']]
-        buffer.append(instructions[opcode](operands))
+        buffer.append(instructions[opcode](opcode, operands))
     else:
         buffer.append(line)
 

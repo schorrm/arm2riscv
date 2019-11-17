@@ -1,4 +1,5 @@
-register_map = {'x0': 'x10',
+plain_register_map = {
+ 'x0': 'x10',
  'w0': 'x10',
  'x1': 'x11',
  'w1': 'x11',
@@ -62,9 +63,51 @@ register_map = {'x0': 'x10',
  'wzr': 'x0',
  'xzr': 'x0',
  'lr': 'ra',
- 'temp': 'x3'
+ 'temp': 'x9',
+ 'x16': 'x9',
+ 'compare' : 'x9'
  }
 
+abi_register_map = {
+    'x0': 'a0',
+ 'x1': 'a1',
+ 'x2': 'a2',
+ 'x3': 'a3',
+ 'x4': 'a4',
+ 'x5': 'a5',
+ 'x6': 'a6',
+ 'x7': 'a7',
+ 'x8': 's1',
+ 'x9': 't0',
+ 'x10': 't1',
+ 'x11': 't2',
+ 'x12': 't3',
+ 'x13': 't4',
+ 'temp': 't4',
+ 'x14': 't5',
+ 'compare' : 't5',
+ 'x15': 't6',
+ 'x16': 't6',
+ 'x17': '',
+ 'x18': '',
+ 'x19': 's2',
+ 'x20': 's3',
+ 'x21': 's4',
+ 'x22': 's5',
+ 'x23': 's6',
+ 'x24': 's7',
+ 'x25': 's8',
+ 'x26': 's9',
+ 'x27': 's10',
+ 'x28': 's11',
+ 'x29': 's0',
+ 'x30': 'ra',
+ 'xzr': 'x0',
+ 'sp': 'sp',
+ 'pc': 'pc'}
+
 mode_map = {
-    'lo12' : 'lo'
+    'lo12' : 'lo',
+    'got'  : 'hi', # not sure about risc-v relocs
+    'got_lo12' : 'lo', # not sure about risc-v relocs
 }
