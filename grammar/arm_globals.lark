@@ -40,6 +40,8 @@ FULLREG: "x" + NUMBER | "xzr" | NAMED_REG
 
 NAMED_REG: "sp" | "fp" | "lr" | "xr"
 
+shift_type: SHIFT_TYPE
+SHIFT_TYPE:  "lsl" | "lsr" | "asr" | "ror" | "rrx"
 
 
 %import common.CNAME

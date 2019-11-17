@@ -72,3 +72,22 @@ class TreeToDict(Transformer):
         }
 
     
+    def shifted_register(self, r):
+        reg, stype, *by = r
+        if by:
+            by = by[0]
+            if type(by) != dict:
+                by = int(by)
+        else:
+            by = None
+        return {'shift':  {
+            'shift_reg' : reg,
+            'shift_type': stype,
+            'shift_by'  : by
+        } }
+    def shift_by(self, o):
+        (o,) = o
+        return o
+    def shift_type(self, t):
+        (t,) = t
+        return str(t)

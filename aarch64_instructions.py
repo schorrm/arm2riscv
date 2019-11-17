@@ -25,7 +25,7 @@ def isreg(d):
 
 def isOversizeOffset(o):
     if type(o) == int:
-        return o > 4096
+        return o >= 2048 or o < -2048
     return False
 
 # Master Arm64Instruction Class, all others inherit from here
@@ -57,6 +57,20 @@ class UnsignedMultiplyAddLong(Arm64Instruction):
             f'mulw {temp}, {wm}, {wn}',
             f'add {xd}, {xa}, {temp}'
         ]
+
+class SignExtendWord(Arm64Instruction):
+    opcodes = ['sxtw']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        xd, wn = operands
+        self.specific_regs = [xd['register'], wn['register']]
+
+    def emit_riscv(self):
+        xd, wn = self.specific_regs
+        self.riscv_instructions = [
+            f'sext.w {xd}, {wn}'
+        ]
         
         
 class BranchAndLink(Arm64Instruction):
@@ -82,6 +96,9 @@ class Add(Arm64Instruction):
                 self.s2 = s2['label']
             elif 'immediate' in s2.keys():
                 self.s2 = s2['immediate']
+                if isOversizeOffset(self.s2):
+                    self.required_temp_regs = ['temp']
+                    self.op = 'add'
         else:
             self.op = 'add'
             self.s2 = False
@@ -93,9 +110,16 @@ class Add(Arm64Instruction):
         dest, s1, *xsource = self.specific_regs
         if xsource:
             self.s2 = xsource[0]
-        self.riscv_instructions = [
-            f'{self.op} {dest}, {s1}, {self.s2}'
-        ]
+        if self.required_temp_regs:
+            temp = self.required_temp_regs[0]
+            self.riscv_instructions = [
+                f'li {temp}, {self.s2}',
+                f'add {dest}, {s1}, {temp}'
+            ]
+        else:
+            self.riscv_instructions = [
+                f'{self.op} {dest}, {s1}, {self.s2}'
+            ]
 
 
 class AddressPCRelative(Arm64Instruction):
@@ -261,6 +285,7 @@ class Subtract(Arm64Instruction):
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         dest, s1, s2 = operands
+        self.oversized = False
         self.op = 'subw' if dest['half_width'] else 'sub'
         self.specific_regs = [dest['register'], s1['register']]
         if 'register' not in s2.keys():
@@ -272,7 +297,13 @@ class Subtract(Arm64Instruction):
             elif 'immediate' in s2.keys():
                 self.s2 = s2['immediate']
             self.s2 = -self.s2 # invert the sign! now an add
-            self.op = 'addiw' if dest['half_width'] else 'addi'
+            if isOversizeOffset(self.s2):
+                self.op = 'sub'
+                self.oversized = True
+                self.s2 = -self.s2
+                self.required_temp_regs = ['temp']
+            else:
+                self.op = 'addiw' if dest['half_width'] else 'addi'
         else:
             self.immediate = False
             self.specific_regs.append(s2['register'])
@@ -281,9 +312,16 @@ class Subtract(Arm64Instruction):
         dest, s1, *xsource = self.specific_regs
         if not self.immediate:
             self.s2 = xsource[0]
-        self.riscv_instructions = [
-            f'{self.op} {dest}, {s1}, {self.s2}'
-        ]
+        if self.oversized:
+            temp = self.required_temp_regs[0]
+            self.riscv_instructions = [
+                f'li {temp}, {self.s2}',
+                f'{self.op} {dest}, {s1}, {temp}'
+            ]
+        else:
+            self.riscv_instructions = [
+                f'{self.op} {dest}, {s1}, {self.s2}'
+            ]
 
 class Branch(Arm64Instruction):
     opcodes = ['b']
@@ -296,15 +334,21 @@ class Branch(Arm64Instruction):
             f'j {target}'
         ]
 
-class LogicalShiftLeft(Arm64Instruction):
-    opcodes = ['lsl']
+class Shift(Arm64Instruction):
+    opcodes = ['lsl', 'lsr', 'asr']
     # May need to be fed into by implied shifts in OP2, tbd
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
+        if opcode == 'lsl':
+            self.op = 'sll'
+        elif opcode == 'lsr':
+            self.op = 'srl'
+        elif opcode == 'asr':
+            self.op = 'sra'
         dest, r1, r2 = operands
-        wflag = 'W' if dest['half_width'] else ''
+        wflag = 'w' if dest['half_width'] else ''
         dest = dest['register']
         r1 = r1['register']
         self.specific_regs = [dest, r1]
@@ -316,7 +360,8 @@ class LogicalShiftLeft(Arm64Instruction):
             self.immediate_op = r2['immediate']
             self.immediate = True
         
-        self.op = 'slli' if self.immediate else 'sll'
+        if self.immediate:
+            self.op += 'i'
         self.op += wflag
     
     def emit_riscv(self):
@@ -328,6 +373,8 @@ class LogicalShiftLeft(Arm64Instruction):
         self.riscv_instructions = [
             f'{self.op} {dest}, {s1}, {self.s2}'
         ]
+
+
 """
 RISC-V Load Types
 LB rd,offset(rs1)	Load Byte	rd ← s8[rs1 + offset]
@@ -359,6 +406,7 @@ class LoadRegister(Arm64Instruction):
         self.reg_offset = False
 
         # Becomes either SW or SD, depending on reg width
+        self.specific_regs = [r1['register'],  sp['register']]
         
         self.offset = 0
         if 'offset' in sp.keys():
@@ -376,22 +424,28 @@ class LoadRegister(Arm64Instruction):
         if isreg(self.offset):
             self.required_temp_regs = ['temp']
             self.reg_offset = self.offset['register']
+            self.specific_regs.append(self.reg_offset)
         
         elif isOversizeOffset(self.offset): # Max size for offset?
             self.required_temp_regs = ['temp']
+
+        if self.final_offset:
+            if isOversizeOffset(self.final_offset):
+                self.required_temp_regs = ['temp']
 
         # TODO: check the specifics of relocation well
         elif sp.get('original_mode'):
             if 'got' in sp['original_mode']: # GOT -- relocation
                 self.base_op = 'add'
         
-        self.specific_regs = [r1['register'],  sp['register']]
 
     # TODO: Change this to use the destination register if D != SP
     # Note: this requires moving the offset commit to the line before the load, 
     # instead of the line after
     def emit_riscv(self):
-        r1, sp = self.specific_regs
+        r1, sp, *self.reg_offset = self.specific_regs
+        if self.reg_offset:
+            self.reg_offset = self.reg_offset[0]
         if self.base_op == 'add':
             self.riscv_instructions = [
                 f'{self.base_op} {r1}, {sp}, {self.offset}'
@@ -463,6 +517,7 @@ class StoreRegister(Arm64Instruction):
         if 'offset' in sp.keys():
             self.offset = sp['offset']
 
+        self.specific_regs = [r1['register'],  sp['register']]
         if len(operands) == 3:
             post_index = True
             self.final_offset = operands[3]['immediate']
@@ -475,14 +530,16 @@ class StoreRegister(Arm64Instruction):
         if isreg(self.offset):
             self.required_temp_regs = ['temp']
             self.reg_offset = self.offset['register']
+            self.specific_regs.append(self.reg_offset)
         
-        elif isOversizeOffset(self.offset):
+        elif isOversizeOffset(self.offset) or isOversizeOffset(self.final_offset):
             self.required_temp_regs = ['temp']
 
-        self.specific_regs = [r1['register'],  sp['register']]
 
     def emit_riscv(self):
-        r1, sp = self.specific_regs
+        r1, sp, *self.reg_offset = self.specific_regs
+        if self.reg_offset:
+            self.reg_offset = self.reg_offset[0]
         if self.required_temp_regs and not self.reg_offset:
             temp = self.required_temp_regs[0]
             self.riscv_instructions = [
@@ -592,5 +649,38 @@ class ExclusiveOr(Arm64Instruction):
         else:
             r2 = r2[0]
         self.riscv_instructions = [
-            f'xor {dest}, {r1}, {r2}'
+            f'{self.baseop} {dest}, {r1}, {r2}'
         ]
+
+class Or(Arm64Instruction):
+    opcodes = ['orr']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+
+        dest, r1, op2 = operands
+        self.specific_regs = [dest['register'], r1['register']]
+
+        self.immediate = not isreg(op2)
+        self.baseop = 'or' if isreg(op2) else 'ori'
+        if not self.immediate:
+            self.specific_regs.append(op2['register'])
+        else:
+            self.immediate_arg = op2['immediate']
+
+    def emit_riscv(self):
+        dest, r1, *r2 = self.specific_regs
+        if self.immediate:
+            r2 = self.immediate_arg
+        else:
+            r2 = r2[0]
+        self.riscv_instructions = [
+            f'{self.baseop} {dest}, {r1}, {r2}'
+        ]
+
+class Nop(Arm64Instruction):
+    opcodes = ['nop']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        self.riscv_instructions = ['nop']

@@ -11,7 +11,8 @@ operand: (reglist
         | label_target
         | indirect
         | dotlabel
-        | proc_load ) writeback?
+        | proc_load 
+        | shifted_register ) writeback?
 
 
 
@@ -20,13 +21,15 @@ DOTLABEL: "." CNAME
 reglist: "{" (register | register_range)+ "}"
 register_range: register "-" register
 indirect: "[" register offset? "]"
-offset: immediate | proc_load | register
+offset: immediate | proc_load | register | shifted_register
 immediate: imm_value  | "#" imm_value
 address: "=" imm_value
 ?imm_value:  hex_val | dec_val
 hex_val.2: "0x" HEXDIGIT+
 ?dec_val: NUMBER | SIGNED_NUMBER
 label_target: CNAME | DOTLABEL
+shifted_register: register shift_type shift_by?
+shift_by: immediate | register
 opcode: CNAME
 proc_load: ":" mode ":" label_target | "#:" mode ":" label_target
 target: dotlabel | label_target
@@ -48,6 +51,7 @@ mode: CNAME
 %import .grammar.arm_globals.full_reg
 %import .grammar.arm_globals.writeback
 %import .grammar.arm_globals.condition_code
+%import .grammar.arm_globals.shift_type
 COMMENT: ";" /[^\n]/*
 %ignore WS
 %ignore COMMENT
