@@ -93,6 +93,8 @@ ops = set()
 for line in sys.stdin:
     tree = l.parse(line)
     d = transformer.transform(tree)
+    if not d: # for empty from comments / weird directives
+        continue
     if 'operation' in d.keys():
         opcode = d['operation']['opcode']
         if opcode not in instructions.keys():
@@ -151,4 +153,4 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
         for st in stores:
             print(f'\t{st}')
     else:
-        print(line.strip())
+        print(line.rstrip())

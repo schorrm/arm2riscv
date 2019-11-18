@@ -37,6 +37,8 @@ class TreeToDict(Transformer):
             'operands': c[1:]
         }}
     def start(self,d):
+        if not d:
+            return d
         (d,) = d
         return d
     def directive(self,d):

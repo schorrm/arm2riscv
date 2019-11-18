@@ -1,9 +1,8 @@
 start: directive? label? operation?
 label: LABEL
-LABEL: CNAME ":"
+LABEL: CNAME ":" 
 operation: opcode operand*
-directive: /\..*/
-
+directive: /\..*/ | "#" CNAME
 operand: (reglist 
         | register
         | immediate 
@@ -52,7 +51,9 @@ mode: CNAME
 %import .grammar.arm_globals.writeback
 %import .grammar.arm_globals.condition_code
 %import .grammar.arm_globals.shift_type
+SLCOMMENT: "//" /.*/ 
 COMMENT: ";" /[^\n]/*
 %ignore WS
 %ignore COMMENT
+%ignore SLCOMMENT
 %ignore ","
