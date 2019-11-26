@@ -185,8 +185,8 @@ class StorePair(Arm64Instruction):
 
         r1, r2, sp = operands[:3]
 
-        # Becomes either SW or SD, depending on reg width
-        self.base_op = 'SW' if r1['half_width'] else 'SD'
+        # Becomes either sw or sd, depending on reg width
+        self.base_op = 'sw' if r1['half_width'] else 'sd'
         
         self.offset = 0
         if 'offset' in sp.keys():
@@ -223,8 +223,8 @@ class LoadPair(Arm64Instruction):
 
         r1, r2, sp = operands[:3]
 
-        # Becomes either LW or LD, depending on reg width
-        self.base_op = 'LW' if r1['half_width'] else 'LD'
+        # Becomes either lw or ld, depending on reg width
+        self.base_op = 'lw' if r1['half_width'] else 'ld'
         
         self.offset = 0
         if 'offset' in sp.keys():
@@ -262,29 +262,38 @@ class Return(Arm64Instruction):
 
 # TODO: This class is a lot like Anthony Weiner. There are disasters
 # wait to happen with sexts. Sign extension / overflow could be iffy
-class Multiply(Arm64Instruction):
-    opcodes = ['mul']
+# combining multiply and divide / rem since should be the same
+class MultiplyDivide (Arm64Instruction):
+    opcodes = ['mul', 'udiv', 'sdiv']
+
+    map_op = {
+        'mul': 'mul',
+        'udiv': 'divu',
+        'sdiv': 'div',
+    }
 
     # TODO: check type safety!
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         regs = [x['register'] for x in operands[:3]]
+        wflag = 'w' if operands[0]['half_width'] else ''
         xd, xa, xb = regs
         self.specific_regs = [xd, xa, xb]
+        self.op = self.map_op[opcode] + wflag
 
     def emit_riscv(self):
         xd, xa, xb = self.specific_regs
         self.riscv_instructions = [
-            f'mulw {xd}, {xa}, {xb}'
+            f'{self.op} {xd}, {xa}, {xb}'
         ]
 
 class Subtract(Arm64Instruction):
-    # may get subs too
-    opcodes = ['sub']
+    opcodes = ['sub', 'subs']
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         dest, s1, s2 = operands
+        self.opcode = opcode
         self.oversized = False
         self.op = 'subw' if dest['half_width'] else 'sub'
         self.specific_regs = [dest['register'], s1['register']]
@@ -308,6 +317,10 @@ class Subtract(Arm64Instruction):
             self.immediate = False
             self.specific_regs.append(s2['register'])
 
+        if self.opcodes == 'subs':
+            self.specific_regs.append('compare')
+
+
     def emit_riscv(self):
         dest, s1, *xsource = self.specific_regs
         if not self.immediate:
@@ -322,6 +335,15 @@ class Subtract(Arm64Instruction):
             self.riscv_instructions = [
                 f'{self.op} {dest}, {s1}, {self.s2}'
             ]
+        
+        if self.opcode == 'subs':
+            if self.immediate:
+                cond = xsource[0]
+            else:
+                cond = xsource[1]
+            self.riscv_instructions.append(
+                f'add {cond}, {dest}, x0'
+            )
 
 class Branch(Arm64Instruction):
     opcodes = ['b']
