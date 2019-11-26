@@ -287,6 +287,19 @@ class MultiplyDivide (Arm64Instruction):
             f'{self.op} {xd}, {xa}, {xb}'
         ]
 
+class Negate(Arm64Instruction):
+    opcodes = ['neg']
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        dest, source = operands
+        self.specific_regs = [dest['register'], source['register']]
+
+    def emit_riscv(self):
+        dest, source = self.specific_regs
+        self.riscv_instructions = [
+            f'sub {dest}, x0, {source}'
+        ]
+
 class Subtract(Arm64Instruction):
     opcodes = ['sub', 'subs']
 
@@ -317,7 +330,7 @@ class Subtract(Arm64Instruction):
             self.immediate = False
             self.specific_regs.append(s2['register'])
 
-        if self.opcodes == 'subs':
+        if self.opcode == 'subs':
             self.specific_regs.append('compare')
 
 
