@@ -1,6 +1,10 @@
 #!/usr/bin/python3
 
+from register_map import register_map, mode_map
 import copy
+
+tempregs = ['s6', 's7', 's8']
+membase_ptr = 's5'
 
 def allocate_registers(registers):
     current = 0
