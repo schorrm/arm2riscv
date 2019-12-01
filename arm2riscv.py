@@ -14,8 +14,16 @@ from tqdm import tqdm
 
 from aarch64_instructions import Arm64Instruction
 
-tempregs = ['s6', 's7', 's8']
-membase_ptr = 's5'
+import argparse
+
+arg_parser = argparse.ArgumentParser()
+arg_parser.add_argument("-annot", "--annot-source", help="show original lines as comments",
+                        action="store_true")
+arg_parser.add_argument('-l', '--log-special', help="""log various changes (const synthesis,
+                        register usage for emulating features, etc.)
+                        (not yet available)""",
+                        action="store_true")
+args = arg_parser.parse_args()
 
 instructions = {}
 for ins in Arm64Instruction.__subclasses__():
@@ -33,19 +41,23 @@ buffer = []
 
 ops = set()
 
+COMCHAR = '#' # define comment character
+
 # first pass: setup buffer with objects
 for line in sys.stdin:
     tree = l.parse(line)
     d = transformer.transform(tree)
-    if not d: # for empty from comments / weird directives
+    if not d:  # for empty from comments / weird directives
         continue
     if 'operation' in d.keys():
+        if args.annot_source:
+            buffer.append(f'\t{COMCHAR} {line.strip()}') # add original line as comment
         opcode = d['operation']['opcode']
         if opcode not in instructions.keys():
-            raise InstructionNotRecognized(opcode)
+            raise InstructionNotRecognized(opcode)  # for now ends program
             buffer.append(line + 'XXXXX')
             continue
-        
+
         operands = [cleanup(operand) for operand in d['operation']['operands']]
         shifts = None
         for operand in operands:
@@ -53,32 +65,35 @@ for line in sys.stdin:
             if shifts:
                 tmpreg = {
                     'register': 'shift_temp',
-                    'half_width' : shifts['shift_reg']['half_width']
+                    'half_width': shifts['shift_reg']['half_width']
                 }
                 op = shifts['shift_type']
                 # TODO: remove the shift_by if it is RRX
                 buffer.append(
-                    instructions[op](op, [tmpreg, shifts['shift_reg'], shifts['shift_by']])
+                    instructions[op](
+                        op, [tmpreg, shifts['shift_reg'], shifts['shift_by']])
                 )
         buffer.append(instructions[opcode](opcode, operands))
     else:
         buffer.append(line)
         if 'label' in d.keys():
             if d['label'] == 'main:':
-                buffer.append('\tla s5, REG_BANK')
+                # inject pointer to register bank on memory
+                buffer.append('\tla\ts5, REG_BANK')
 
 # Remove arch directive
 if buffer[0].strip().startswith('.arch'):
     buffer.pop(0)
 
 buffer.insert(1, reg_labels)
-memguards_loads  = []
+memguards_loads = []
 memguards_stores = []
- 
+
 # second pass: convert registers
 for i, line in enumerate(buffer):
     if Arm64Instruction in type(line).__mro__:
-        line.required_temp_regs = [register_map[r] for r in line.required_temp_regs]
+        line.required_temp_regs = [register_map[r]
+                                   for r in line.required_temp_regs]
         loads, stores = allocate_registers(line.specific_regs)
         memguards_loads.append(loads)
         memguards_stores.append(stores)
@@ -90,11 +105,14 @@ for i, line in enumerate(buffer):
 for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
     if Arm64Instruction in type(line).__mro__:
         for ld in loads:
+            ld = ld.replace(' ','\t',1) # replace first space with tab for cleaner formatting
             print(f'\t{ld}')
         line.emit_riscv()
         for l in line.riscv_instructions:
-            print(f'\t{l}') 
+            fl = l.replace(' ','\t',1) # replace first space with tab for cleaner formatting
+            print(f'\t{fl}')
         for st in stores:
+            st = st.replace(' ','\t',1) # replace first space with tab for cleaner formatting
             print(f'\t{st}')
     else:
         print(line.rstrip())
