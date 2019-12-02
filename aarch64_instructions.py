@@ -39,7 +39,7 @@ class Arm64Instruction:
     def emit_riscv(self):
         pass
       
-    
+# converting umaddl: one arm instruction into two riscv instructions using one temp register    
 class UnsignedMultiplyAddLong(Arm64Instruction):
     opcodes = ['umaddl']
 
@@ -58,6 +58,7 @@ class UnsignedMultiplyAddLong(Arm64Instruction):
             f'add {xd}, {xa}, {temp}'
         ]
 
+# converting sxtw: one arm instruction into one riscv instruction
 class SignExtendWord(Arm64Instruction):
     opcodes = ['sxtw']
 
@@ -72,7 +73,7 @@ class SignExtendWord(Arm64Instruction):
             f'sext.w {xd}, {wn}'
         ]
         
-        
+# converting bl: one arm instruction into one riscv instruction         
 class BranchAndLink(Arm64Instruction):
     opcodes = ['bl']
 
@@ -83,6 +84,9 @@ class BranchAndLink(Arm64Instruction):
             f'call {label}'
         ]
 
+# converting add: one arm instruction into one or two riscv instructions
+# 2 riscv instructions includes 1 temp register when converting add with too large immediate
+# otherwise one riscv instruction
 class Add(Arm64Instruction):
     opcodes = ['add']
 
@@ -121,7 +125,7 @@ class Add(Arm64Instruction):
                 f'{self.op} {dest}, {s1}, {self.s2}'
             ]
 
-
+# converting adrp: one arm instruction into one riscv instruction
 class AddressPCRelative(Arm64Instruction):
     opcodes = ['adrp']
 
@@ -139,6 +143,10 @@ class AddressPCRelative(Arm64Instruction):
             f'lui {dest}, {self.label}'
         ]
 
+# converting mov: one arm instruction into one riscv instruction
+# converting move between 2 regs implemented with add instruction with x0
+# converting move between immediate and 1 reg implemented with li instruction
+# converting move between label and 1 reg implemented with la instruction
 class Move(Arm64Instruction):
     opcodes = ['mov']
 
@@ -176,7 +184,8 @@ class Move(Arm64Instruction):
                 f'add {self.dest}, x0, {self.source}'
             ]
 
-
+# converting stp: one arm instruction into two or three riscv instructions
+# three store instruction when sp changes, otherwise two
 class StorePair(Arm64Instruction):
     opcodes = ['stp']
 
@@ -214,7 +223,8 @@ class StorePair(Arm64Instruction):
                 f'addi {sp}, {sp}, {self.final_offset}'
             )
         
-
+# converting ldp: one arm instruction into two or three riscv instructions
+# three load instruction when sp changes, otherwise two
 class LoadPair(Arm64Instruction):
     opcodes = ['ldp']
 
@@ -252,6 +262,7 @@ class LoadPair(Arm64Instruction):
                 f'addi {sp}, {sp}, {self.final_offset}'
             )
 
+# converting ret: one arm instruction into one riscv instruction
 class Return(Arm64Instruction):
     opcodes = ['ret']
 
@@ -263,6 +274,8 @@ class Return(Arm64Instruction):
 # TODO: This class is a lot like Anthony Weiner. There are disasters
 # wait to happen with sexts. Sign extension / overflow could be iffy
 # combining multiply and divide / rem since should be the same
+
+# converting mul, udiv or sdiv: one arm instruction into one riscv instruction
 class MultiplyDivide (Arm64Instruction):
     opcodes = ['mul', 'udiv', 'sdiv']
 
@@ -287,6 +300,7 @@ class MultiplyDivide (Arm64Instruction):
             f'{self.op} {xd}, {xa}, {xb}'
         ]
 
+# converting neg: one arm instruction into one riscv instruction
 class Negate(Arm64Instruction):
     opcodes = ['neg']
     def __init__(self, opcode, operands):
@@ -300,6 +314,10 @@ class Negate(Arm64Instruction):
             f'sub {dest}, x0, {source}'
         ]
 
+# converting sub or subs: one arm instruction into one, two or three riscv instructions
+# when converting sub: 2 riscv instruction when subtracting too large immediate number using temp register
+# when converting sub: 1 riscv instruction when the above not applying
+# when converting subs: doing like sub and adding an instruction that moves the result to the required location
 class Subtract(Arm64Instruction):
     opcodes = ['sub', 'subs']
 
@@ -358,6 +376,7 @@ class Subtract(Arm64Instruction):
                 f'add {cond}, {dest}, x0'
             )
 
+# converting b: one arm instruction into one riscv instruction
 class Branch(Arm64Instruction):
     opcodes = ['b']
     # add conditionals to here? or separately?
@@ -369,6 +388,7 @@ class Branch(Arm64Instruction):
             f'j {target}'
         ]
 
+# converting lsl, lsr or asr: one arm instruction into one riscv instruction
 class Shift(Arm64Instruction):
     opcodes = ['lsl', 'lsr', 'asr']
     # May need to be fed into by implied shifts in OP2, tbd
@@ -421,6 +441,8 @@ LWU rd,offset(rs1)	Load Word Unsigned	rd ← u32[rs1 + offset]
 LD rd,offset(rs1)	Load Double	rd ← u64[rs1 + offset]
 """
 
+# converting ldr, ldrp, ldrsw or ldrsh: one arm instruction into one, two, three or four riscv instructions
+# usins temp for some of them
 class LoadRegister(Arm64Instruction):
     opcodes = ['ldr', 'ldrb', 'ldrsw', 'ldrsh']
 
@@ -526,7 +548,8 @@ SH rs2,offset(rs1)	Store Half	u16[rs1 + offset] ← rs2
 SW rs2,offset(rs1)	Store Word	u32[rs1 + offset] ← rs2
 SD rs2,offset(rs1)	Store Double	u64[rs1 + offset] ← rs2
 """
-
+# converting str, strh, or strb: one arm instruction into two, three or four riscv instructions
+# using temp register for some of them
 class StoreRegister(Arm64Instruction):
     opcodes = ['str', 'strh', 'strb']
 
@@ -612,6 +635,8 @@ class StoreRegister(Arm64Instruction):
 
 # Placeholder Compare -- to be swapped out later for fusion
 
+# converting cmp: one arm instruction into one riscv instruction
+# result is saved in the compare register
 class Compare(Arm64Instruction):
     # may get subs too
     opcodes = ['cmp']
@@ -646,6 +671,8 @@ class Compare(Arm64Instruction):
             f'{op} {cmpreg}, {left}, {right}'
         ]
 
+# converting ble, blt, bge, bgt, beq or bne: one arm instruction into one riscv instruction
+# using the result of the last compare from the compare register
 class ConditionalBranch(Arm64Instruction):
     opcodes = ['ble', 'blt', 'bge', 'bgt', 'beq', 'bne']
 
@@ -661,6 +688,7 @@ class ConditionalBranch(Arm64Instruction):
             f'{self.opcode} {cmpreg}, x0, {self.target}'
         ]
 
+# converting eor: one arm instruction into one riscv instruction
 class ExclusiveOr(Arm64Instruction):
     opcodes = ['eor']
 
@@ -687,6 +715,7 @@ class ExclusiveOr(Arm64Instruction):
             f'{self.baseop} {dest}, {r1}, {r2}'
         ]
 
+# converting orr: one arm instruction into one riscv instruction
 class Or(Arm64Instruction):
     opcodes = ['orr']
 
@@ -713,6 +742,7 @@ class Or(Arm64Instruction):
             f'{self.baseop} {dest}, {r1}, {r2}'
         ]
 
+# converting nop: one arm instruction into one riscv instruction
 class Nop(Arm64Instruction):
     opcodes = ['nop']
 
