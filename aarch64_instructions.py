@@ -529,7 +529,7 @@ class LoadRegister(Arm64Instruction):
             ]
             if self.final_offset:
                 self.riscv_instructions.append(
-                    f'add {sp}, x0, {temp}'
+                    f'mv {sp}, {temp}'
                 )
         elif not self.reg_offset:
             self.riscv_instructions = [
@@ -620,7 +620,7 @@ class StoreRegister(Arm64Instruction):
             ]
             if self.final_offset:
                 self.riscv_instructions.append(
-                    f'add {sp}, x0, {temp}'
+                    f'mv {sp}, {temp}'
                 )
 
         elif not self.reg_offset:
@@ -642,7 +642,7 @@ class StoreRegister(Arm64Instruction):
 
             if self.final_offset:
                 self.riscv_instructions.append(
-                    f'add {sp}, x0, {temp}'
+                    f'mv {sp}, {temp}'
                 )
 
 
