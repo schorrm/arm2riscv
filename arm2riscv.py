@@ -41,7 +41,7 @@ buffer = []
 
 ops = set()
 
-COMCHAR = '#' # define comment character
+COMCHAR = '#'  # define comment character
 
 # first pass: setup buffer with objects
 for line in sys.stdin:
@@ -51,7 +51,8 @@ for line in sys.stdin:
         continue
     if 'operation' in d.keys():
         if args.annot_source:
-            buffer.append(f'\t{COMCHAR} {line.strip()}') # add original line as comment
+            # add original line as comment
+            buffer.append(f'\t{COMCHAR} {line.strip()}')
         opcode = d['operation']['opcode']
         if opcode not in instructions.keys():
             raise InstructionNotRecognized(opcode)  # for now ends program
@@ -105,14 +106,17 @@ for i, line in enumerate(buffer):
 for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
     if Arm64Instruction in type(line).__mro__:
         for ld in loads:
-            ld = ld.replace(' ','\t',1) # replace first space with tab for cleaner formatting
+            # replace first space with tab for cleaner formatting
+            ld = ld.replace(' ', '\t', 1)
             print(f'\t{ld}')
         line.emit_riscv()
         for l in line.riscv_instructions:
-            fl = l.replace(' ','\t',1) # replace first space with tab for cleaner formatting
+            # replace first space with tab for cleaner formatting
+            fl = l.replace(' ', '\t', 1)
             print(f'\t{fl}')
         for st in stores:
-            st = st.replace(' ','\t',1) # replace first space with tab for cleaner formatting
+            # replace first space with tab for cleaner formatting
+            st = st.replace(' ', '\t', 1)
             print(f'\t{st}')
     else:
         print(line.rstrip())
