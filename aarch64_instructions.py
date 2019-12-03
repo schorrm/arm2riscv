@@ -16,6 +16,8 @@ LDR LoadRegister
 MUL Multiply
 """
 
+COMPARE = 'compare' # name of register target for comparef
+
 # little helper functions
 def isreg(d):
     if type(d) == dict:
@@ -27,7 +29,10 @@ def isOversizeOffset(o):
         return o >= 2048 or o < -2048
     return False
 
-
+def wfreg(r):
+    if r['half_width']:
+        return 'w'
+    return ''
 # Master Arm64Instruction Class, all others inherit from here
 class Arm64Instruction:
     def __init__(self, opcode, operands):
@@ -182,7 +187,7 @@ class Move(Arm64Instruction):
             ]
         else:
             self.riscv_instructions = [
-                f'add {self.dest}, x0, {self.source}'
+                f'mv {self.dest}, {self.source}'
             ]
 
 # converting stp: one arm instruction into two or three riscv instructions
@@ -545,7 +550,7 @@ class LoadRegister(Arm64Instruction):
 
             if self.final_offset:
                 self.riscv_instructions.append(
-                    f'add {sp}, x0, {temp}'
+                    f'mv {sp}, {temp}'
                 )
 
 
@@ -654,7 +659,7 @@ class Compare(Arm64Instruction):
         left, right = operands
         left = left['register']
 
-        self.specific_regs = ['compare', left]
+        self.specific_regs = [COMPARE, left]
 
         self.immediate = not isreg(right)
 
@@ -686,7 +691,7 @@ class ConditionalBranch(Arm64Instruction):
         super().__init__(opcode, operands)
 
         self.target = operands[0]['label']
-        self.specific_regs = ['compare']
+        self.specific_regs = [COMPARE]
 
     def emit_riscv(self):
         cmpreg = self.specific_regs[0]
@@ -694,9 +699,33 @@ class ConditionalBranch(Arm64Instruction):
             f'{self.opcode} {cmpreg}, x0, {self.target}'
         ]
 
-# converting eor: one arm instruction into one riscv instruction
+# Note: pray that '999999' is not being used as a numeric label elsewhere.
+# We only go forward so multiple csels won't matter
+# Convert conditional select
+class ConditionalSelect(Arm64Instruction):
+    opcodes = ['csel']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+
+        self.cc = operands[3]['label'].lower()
+        self.specific_regs = [r['register'] for r in operands[:3]] + [COMPARE]
+        self.required_temp_regs = ['temp'] # this allows cutting out a branch and simplifying
+        self.wf = wfreg(operands[0])
+
+    def emit_riscv(self):
+        dest, s1, s2, cond = self.specific_regs
+        temp = self.required_temp_regs[0]
+        self.riscv_instructions = [
+            f'add{self.wf} {temp}, {s1}, x0',
+            f'b{self.cc} {cond}, x0, 999999f',
+            f'add{self.wf} {temp}, {s2}, x0',
+            f'999999:',
+            f'add{self.wf} {dest}, x0, {temp}'
+        ]
 
 
+# converting exclusive-or: one arm instruction into one riscv instruction
 class ExclusiveOr(Arm64Instruction):
     opcodes = ['eor']
 
@@ -723,9 +752,7 @@ class ExclusiveOr(Arm64Instruction):
             f'{self.baseop} {dest}, {r1}, {r2}'
         ]
 
-# converting orr: one arm instruction into one riscv instruction
-
-
+# converting Or: one arm instruction into one riscv instruction
 class Or(Arm64Instruction):
     opcodes = ['orr']
 
