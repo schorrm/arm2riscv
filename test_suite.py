@@ -24,9 +24,9 @@ for fn in tqdm(os.listdir(CODE_DIR)):
         print ('failed on build', fn)
         exit(1)
 
-    subprocess.check_call(f'riscv64-linux-gnu-gcc {fp} -static -o {bin_path}_basic.out', shell=True)
+    subprocess.check_call(f'aarch64-linux-gnu-gcc {fp} -static -o {bin_path}_basic.out', shell=True)
     transpiled = subprocess.check_output(f'qemu-riscv64-static {bin_path}_transpiled.out', shell=True)
-    basic = subprocess.check_output(f'qemu-riscv64-static {bin_path}_basic.out', shell=True)
+    basic = subprocess.check_output(f'qemu-aarch64-static {bin_path}_basic.out', shell=True)
 
     if transpiled == basic:
         success += 1
