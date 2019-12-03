@@ -18,10 +18,12 @@ MUL Multiply
 
 # little helper functions
 
+
 def isreg(d):
     if type(d) == dict:
         return 'register' in d.keys()
     return False
+
 
 def isOversizeOffset(o):
     if type(o) == int:
@@ -29,6 +31,8 @@ def isOversizeOffset(o):
     return False
 
 # Master Arm64Instruction Class, all others inherit from here
+
+
 class Arm64Instruction:
     def __init__(self, opcode, operands):
         self.opcode = opcode
@@ -38,8 +42,8 @@ class Arm64Instruction:
 
     def emit_riscv(self):
         pass
-      
-# converting umaddl: one arm instruction into two riscv instructions using one temp register    
+
+# converting umaddl: one arm instruction into two riscv instructions using one temp register
 class UnsignedMultiplyAddLong(Arm64Instruction):
     opcodes = ['umaddl']
 
@@ -58,7 +62,7 @@ class UnsignedMultiplyAddLong(Arm64Instruction):
             f'add {xd}, {xa}, {temp}'
         ]
 
-# converting sxtw: one arm instruction into one riscv instruction
+# converting sxtw: one arm instruction into one riscv (asm) instruction
 class SignExtendWord(Arm64Instruction):
     opcodes = ['sxtw']
 
@@ -72,8 +76,10 @@ class SignExtendWord(Arm64Instruction):
         self.riscv_instructions = [
             f'sext.w {xd}, {wn}'
         ]
-        
-# converting bl: one arm instruction into one riscv instruction         
+
+# converting bl: one arm instruction into one riscv instruction
+
+
 class BranchAndLink(Arm64Instruction):
     opcodes = ['bl']
 
@@ -126,6 +132,8 @@ class Add(Arm64Instruction):
             ]
 
 # converting adrp: one arm instruction into one riscv instruction
+
+
 class AddressPCRelative(Arm64Instruction):
     opcodes = ['adrp']
 
@@ -143,17 +151,19 @@ class AddressPCRelative(Arm64Instruction):
             f'lui {dest}, {self.label}'
         ]
 
+
 # converting mov: one arm instruction into one riscv instruction
 # converting move between 2 regs implemented with add instruction with x0
 # converting move between immediate and 1 reg implemented with li instruction
 # converting move between label and 1 reg implemented with la instruction
+
 class Move(Arm64Instruction):
     opcodes = ['mov']
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         dest = operands[0]['register']
-        src  = operands[1]
+        src = operands[1]
         self.specific_regs = [dest]
         self.stype = None
         if 'register' in src.keys():
@@ -169,7 +179,7 @@ class Move(Arm64Instruction):
     def emit_riscv(self):
         if len(self.specific_regs) > 1:
             self.source = self.specific_regs[1]
-        
+
         self.dest = self.specific_regs[0]
         if self.stype == 'immediate':
             self.riscv_instructions = [
@@ -179,13 +189,15 @@ class Move(Arm64Instruction):
             self.riscv_instructions = [
                 f'la {self.dest}, {self.source}'
             ]
-        else:            
+        else:
             self.riscv_instructions = [
                 f'add {self.dest}, x0, {self.source}'
             ]
 
 # converting stp: one arm instruction into two or three riscv instructions
 # three store instruction when sp changes, otherwise two
+
+
 class StorePair(Arm64Instruction):
     opcodes = ['stp']
 
@@ -196,7 +208,7 @@ class StorePair(Arm64Instruction):
 
         # Becomes either sw or sd, depending on reg width
         self.base_op = 'sw' if r1['half_width'] else 'sd'
-        
+
         self.offset = 0
         if 'offset' in sp.keys():
             self.offset = sp['offset']
@@ -204,9 +216,9 @@ class StorePair(Arm64Instruction):
             post_index = True
             self.final_offset = operands[3]['immediate']
         elif sp['writeback']:
-            pre_index  = True
+            pre_index = True
             self.final_offset = sp['offset']
-        else: # Signed Offset
+        else:  # Signed Offset
             self.final_offset = None
 
         self.specific_regs = [r1['register'], r2['register'], sp['register']]
@@ -222,9 +234,11 @@ class StorePair(Arm64Instruction):
             self.riscv_instructions.append(
                 f'addi {sp}, {sp}, {self.final_offset}'
             )
-        
+
 # converting ldp: one arm instruction into two or three riscv instructions
 # three load instruction when sp changes, otherwise two
+
+
 class LoadPair(Arm64Instruction):
     opcodes = ['ldp']
 
@@ -235,7 +249,7 @@ class LoadPair(Arm64Instruction):
 
         # Becomes either lw or ld, depending on reg width
         self.base_op = 'lw' if r1['half_width'] else 'ld'
-        
+
         self.offset = 0
         if 'offset' in sp.keys():
             self.offset = sp['offset']
@@ -243,9 +257,9 @@ class LoadPair(Arm64Instruction):
             post_index = True
             self.final_offset = operands[3]['immediate']
         elif sp['writeback']:
-            pre_index  = True
+            pre_index = True
             self.final_offset = sp['offset']
-        else: # Signed Offset
+        else:  # Signed Offset
             self.final_offset = None
 
         self.specific_regs = [r1['register'], r2['register'], sp['register']]
@@ -263,6 +277,8 @@ class LoadPair(Arm64Instruction):
             )
 
 # converting ret: one arm instruction into one riscv instruction
+
+
 class Return(Arm64Instruction):
     opcodes = ['ret']
 
@@ -301,8 +317,10 @@ class MultiplyDivide (Arm64Instruction):
         ]
 
 # converting neg: one arm instruction into one riscv instruction
+# TODO: do we need a word level op for this? 
 class Negate(Arm64Instruction):
     opcodes = ['neg']
+
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         dest, source = operands
@@ -315,9 +333,11 @@ class Negate(Arm64Instruction):
         ]
 
 # converting sub or subs: one arm instruction into one, two or three riscv instructions
-# when converting sub: 2 riscv instruction when subtracting too large immediate number using temp register
+# when converting sub: 2 riscv instruction when subtracting too
+# oversize immediate number using temp register for constant synthesis
 # when converting sub: 1 riscv instruction when the above not applying
-# when converting subs: doing like sub and adding an instruction that moves the result to the required location
+# when converting subs: doing like sub and adding an instruction that
+# moves the result to the compare register
 class Subtract(Arm64Instruction):
     opcodes = ['sub', 'subs']
 
@@ -329,14 +349,14 @@ class Subtract(Arm64Instruction):
         self.op = 'subw' if dest['half_width'] else 'sub'
         self.specific_regs = [dest['register'], s1['register']]
         if 'register' not in s2.keys():
-            self.immediate = True 
+            self.immediate = True
             if 'label' in s2.keys():
                 self.s2 = s2['label']
                 # TODO: FIX
                 # undefined behavior for now
             elif 'immediate' in s2.keys():
                 self.s2 = s2['immediate']
-            self.s2 = -self.s2 # invert the sign! now an add
+            self.s2 = -self.s2  # invert the sign! now an add
             if isOversizeOffset(self.s2):
                 self.op = 'sub'
                 self.oversized = True
@@ -350,7 +370,6 @@ class Subtract(Arm64Instruction):
 
         if self.opcode == 'subs':
             self.specific_regs.append('compare')
-
 
     def emit_riscv(self):
         dest, s1, *xsource = self.specific_regs
@@ -366,7 +385,7 @@ class Subtract(Arm64Instruction):
             self.riscv_instructions = [
                 f'{self.op} {dest}, {s1}, {self.s2}'
             ]
-        
+
         if self.opcode == 'subs':
             if self.immediate:
                 cond = xsource[0]
@@ -414,11 +433,11 @@ class Shift(Arm64Instruction):
         else:
             self.immediate_op = r2['immediate']
             self.immediate = True
-        
+
         if self.immediate:
             self.op += 'i'
         self.op += wflag
-    
+
     def emit_riscv(self):
         dest, s1, *xsource = self.specific_regs
         if not self.immediate:
@@ -441,8 +460,9 @@ LWU rd,offset(rs1)	Load Word Unsigned	rd ← u32[rs1 + offset]
 LD rd,offset(rs1)	Load Double	rd ← u64[rs1 + offset]
 """
 
-# converting ldr, ldrp, ldrsw or ldrsh: one arm instruction into one, two, three or four riscv instructions
-# usins temp for some of them
+# converting ldr, ldrp, ldrsw or ldrsh: one arm instruction
+# into one, two, three or four riscv instructions
+# using temp for some of them
 class LoadRegister(Arm64Instruction):
     opcodes = ['ldr', 'ldrb', 'ldrsw', 'ldrsh']
 
@@ -455,7 +475,7 @@ class LoadRegister(Arm64Instruction):
             self.base_op = 'lb'
         elif opcode == 'ldrsh':
             self.base_op = 'lh'
-        elif r1['half_width'] or opcode=='ldrsw':
+        elif r1['half_width'] or opcode == 'ldrsw':
             self.base_op = 'lw'
         else:
             self.base_op = 'ld'
@@ -464,7 +484,7 @@ class LoadRegister(Arm64Instruction):
 
         # Becomes either SW or SD, depending on reg width
         self.specific_regs = [r1['register'],  sp['register']]
-        
+
         self.offset = 0
         if 'offset' in sp.keys():
             self.offset = sp['offset']
@@ -473,17 +493,17 @@ class LoadRegister(Arm64Instruction):
             post_index = True
             self.final_offset = operands[3]['immediate']
         elif sp['writeback']:
-            pre_index  = True
+            pre_index = True
             self.final_offset = sp['offset']
-        else: # Signed Offset
+        else:  # Signed Offset
             self.final_offset = None
 
         if isreg(self.offset):
             self.required_temp_regs = ['temp']
             self.reg_offset = self.offset['register']
             self.specific_regs.append(self.reg_offset)
-        
-        elif isOversizeOffset(self.offset): # Max size for offset?
+
+        elif isOversizeOffset(self.offset):  # Max size for offset?
             self.required_temp_regs = ['temp']
 
         if self.final_offset:
@@ -492,13 +512,13 @@ class LoadRegister(Arm64Instruction):
 
         # TODO: check the specifics of relocation well
         elif sp.get('original_mode'):
-            if 'got' in sp['original_mode']: # GOT -- relocation
+            if 'got' in sp['original_mode']:  # GOT -- relocation
                 self.base_op = 'add'
-        
 
     # TODO: Change this to use the destination register if D != SP
-    # Note: this requires moving the offset commit to the line before the load, 
+    # Note: this requires moving the offset commit to the line before the load,
     # instead of the line after
+
     def emit_riscv(self):
         r1, sp, *self.reg_offset = self.specific_regs
         if self.reg_offset:
@@ -527,7 +547,7 @@ class LoadRegister(Arm64Instruction):
                 self.riscv_instructions.append(
                     f'addi {sp}, {sp}, {self.final_offset}'
                 )
-        
+
         else:
             temp = self.required_temp_regs[0]
             self.riscv_instructions = [
@@ -548,8 +568,9 @@ SH rs2,offset(rs1)	Store Half	u16[rs1 + offset] ← rs2
 SW rs2,offset(rs1)	Store Word	u32[rs1 + offset] ← rs2
 SD rs2,offset(rs1)	Store Double	u64[rs1 + offset] ← rs2
 """
+
 # converting str, strh, or strb: one arm instruction into two, three or four riscv instructions
-# using temp register for some of them
+# using temp register for some of them, depends on the offset
 class StoreRegister(Arm64Instruction):
     opcodes = ['str', 'strh', 'strb']
 
@@ -560,9 +581,9 @@ class StoreRegister(Arm64Instruction):
 
         if opcode == 'strb':
             self.base_op = 'sb'
-        elif opcode =='strh':
+        elif opcode == 'strh':
             self.base_op = 'sh'
-        elif r1['half_width'] or opcode=='strsw':
+        elif r1['half_width'] or opcode == 'strsw':
             self.base_op = 'sw'
         else:
             self.base_op = 'sd'
@@ -570,7 +591,7 @@ class StoreRegister(Arm64Instruction):
         self.reg_offset = False
 
         # Becomes either SW or SD, depending on reg width
-        
+
         self.offset = 0
         if 'offset' in sp.keys():
             self.offset = sp['offset']
@@ -580,19 +601,18 @@ class StoreRegister(Arm64Instruction):
             post_index = True
             self.final_offset = operands[3]['immediate']
         elif sp['writeback']:
-            pre_index  = True
+            pre_index = True
             self.final_offset = sp['offset']
-        else: # Signed Offset
+        else:  # Signed Offset
             self.final_offset = None
 
         if isreg(self.offset):
             self.required_temp_regs = ['temp']
             self.reg_offset = self.offset['register']
             self.specific_regs.append(self.reg_offset)
-        
+
         elif isOversizeOffset(self.offset) or isOversizeOffset(self.final_offset):
             self.required_temp_regs = ['temp']
-
 
     def emit_riscv(self):
         r1, sp, *self.reg_offset = self.specific_regs
@@ -619,7 +639,7 @@ class StoreRegister(Arm64Instruction):
                 self.riscv_instructions.append(
                     f'addi {sp}, {sp}, {self.final_offset}'
                 )
-        
+
         elif self.reg_offset:
             temp = self.required_temp_regs[0]
             self.riscv_instructions = [
@@ -633,8 +653,7 @@ class StoreRegister(Arm64Instruction):
                 )
 
 
-# Placeholder Compare -- to be swapped out later for fusion
-
+# Placeholder Compare -- may be swapped out later for fusion
 # converting cmp: one arm instruction into one riscv instruction
 # result is saved in the compare register
 class Compare(Arm64Instruction):
@@ -657,7 +676,6 @@ class Compare(Arm64Instruction):
         else:
             right = right['immediate']
             self.immediate_arg = right
-
 
     def emit_riscv(self):
         op = 'sub'
@@ -689,6 +707,8 @@ class ConditionalBranch(Arm64Instruction):
         ]
 
 # converting eor: one arm instruction into one riscv instruction
+
+
 class ExclusiveOr(Arm64Instruction):
     opcodes = ['eor']
 
@@ -716,6 +736,8 @@ class ExclusiveOr(Arm64Instruction):
         ]
 
 # converting orr: one arm instruction into one riscv instruction
+
+
 class Or(Arm64Instruction):
     opcodes = ['orr']
 
