@@ -17,22 +17,18 @@ MUL Multiply
 """
 
 # little helper functions
-
-
 def isreg(d):
     if type(d) == dict:
         return 'register' in d.keys()
     return False
-
 
 def isOversizeOffset(o):
     if type(o) == int:
         return o >= 2048 or o < -2048
     return False
 
+
 # Master Arm64Instruction Class, all others inherit from here
-
-
 class Arm64Instruction:
     def __init__(self, opcode, operands):
         self.opcode = opcode
@@ -78,8 +74,6 @@ class SignExtendWord(Arm64Instruction):
         ]
 
 # converting bl: one arm instruction into one riscv instruction
-
-
 class BranchAndLink(Arm64Instruction):
     opcodes = ['bl']
 
@@ -132,8 +126,6 @@ class Add(Arm64Instruction):
             ]
 
 # converting adrp: one arm instruction into one riscv instruction
-
-
 class AddressPCRelative(Arm64Instruction):
     opcodes = ['adrp']
 
@@ -156,7 +148,6 @@ class AddressPCRelative(Arm64Instruction):
 # converting move between 2 regs implemented with add instruction with x0
 # converting move between immediate and 1 reg implemented with li instruction
 # converting move between label and 1 reg implemented with la instruction
-
 class Move(Arm64Instruction):
     opcodes = ['mov']
 
@@ -196,8 +187,6 @@ class Move(Arm64Instruction):
 
 # converting stp: one arm instruction into two or three riscv instructions
 # three store instruction when sp changes, otherwise two
-
-
 class StorePair(Arm64Instruction):
     opcodes = ['stp']
 
@@ -235,10 +224,9 @@ class StorePair(Arm64Instruction):
                 f'addi {sp}, {sp}, {self.final_offset}'
             )
 
+
 # converting ldp: one arm instruction into two or three riscv instructions
 # three load instruction when sp changes, otherwise two
-
-
 class LoadPair(Arm64Instruction):
     opcodes = ['ldp']
 
@@ -287,11 +275,11 @@ class Return(Arm64Instruction):
         self.riscv_instructions = ['ret']
 
 
-# TODO: This class is a lot like Anthony Weiner. There are disasters
-# wait to happen with sexts. Sign extension / overflow could be iffy
 # combining multiply and divide / rem since should be the same
-
 # converting mul, udiv or sdiv: one arm instruction into one riscv instruction
+
+# TODO: This class is a lot like Anthony Weiner: There are disasters waiting
+# to happen with sexts. Sign extension / overflow could be very iffy.
 class MultiplyDivide (Arm64Instruction):
     opcodes = ['mul', 'udiv', 'sdiv']
 
