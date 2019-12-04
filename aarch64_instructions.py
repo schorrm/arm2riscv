@@ -33,6 +33,29 @@ def wfreg(r):
     if r['half_width']:
         return 'w'
     return ''
+
+def pullregs(operands):
+    return [r['register'] for r in operands]
+
+
+""" RISC-V Format Fields for FP
+00 S 32-bit single-precision
+01 D 64-bit double-precision
+10 H 16-bit half-precision
+11 Q 128-bit quad-precision
+"""
+fpfmtmap = {
+    16: 'H',
+    32: 'S',
+    64: 'D',
+    128: 'Q'
+}
+
+# Return the appropriate RISC-V char suffix for the width
+def floatfmt(reg):
+    return fpfmtmap[reg['width']].lower()
+
+
 # Master Arm64Instruction Class, all others inherit from here
 class Arm64Instruction:
     def __init__(self, opcode, operands):
@@ -468,6 +491,10 @@ class LoadRegister(Arm64Instruction):
             self.base_op = 'lb'
         elif opcode == 'ldrsh':
             self.base_op = 'lh'
+        elif r1['type'] == 'fp':
+            store_suffix = 'w' if r1['width'] == 32 else floatfmt(r1)
+            self.base_op = 'fl' + store_suffix
+            self.float_st = True
         elif r1['half_width'] or opcode == 'ldrsw':
             self.base_op = 'lw'
         else:
@@ -572,11 +599,16 @@ class StoreRegister(Arm64Instruction):
 
         r1, sp = operands[:2]
 
+        self.float_st = False
         if opcode == 'strb':
             self.base_op = 'sb'
         elif opcode == 'strh':
             self.base_op = 'sh'
-        elif r1['half_width'] or opcode == 'strsw':
+        elif r1['type'] == 'fp':
+            store_suffix = 'w' if r1['width'] == 32 else floatfmt(r1)
+            self.base_op = 'fs' + store_suffix
+            self.float_st = True
+        elif r1['half_width']:
             self.base_op = 'sw'
         else:
             self.base_op = 'sd'
@@ -699,9 +731,9 @@ class ConditionalBranch(Arm64Instruction):
             f'{self.opcode} {cmpreg}, x0, {self.target}'
         ]
 
+# Conditional operations
 # Note: pray that '999999' is not being used as a numeric label elsewhere.
 # We only go forward so multiple csels won't matter
-# Convert conditional select
 class ConditionalSelect(Arm64Instruction):
     opcodes = ['csel']
 
@@ -786,3 +818,29 @@ class Nop(Arm64Instruction):
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         self.riscv_instructions = ['nop']
+
+
+
+# Floating Point Instructions
+# Use this for all simple 1:1 conversions
+class FloatingPointSimplex(Arm64Instruction):
+    opcodes = ['fadd', 'fsub', 'fdiv', 'fmul']
+
+    opmap = {
+        'fadd' : 'fadd',
+        'fsub' : 'fsub',
+        'fdiv' : 'fdiv',
+        'fmul' : 'fmul',
+    }
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        self.specific_regs = pullregs(operands)
+        self.width = floatfmt(operands[0])
+        self.op = self.opmap[opcode]
+
+    def emit_riscv(self):
+        dst, s1, s2 = self.specific_regs
+        self.riscv_instructions = [
+            f'{self.op}.{self.width} {dst}, {s1}, {s2}'
+        ]
+    

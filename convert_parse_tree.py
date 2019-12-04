@@ -59,21 +59,42 @@ class TreeToDict(Transformer):
     def label(self, l):
         (l,) = l
         return {'label': l}
-
     def half_reg(self, r):
         (r,) = r
         return {
             'register': str(r),
+            'type': 'gp',
             'half_width': True
         }
     def full_reg(self, r):
         (r,) = r
         return {
             'register': str(r),
+            'type': 'gp',
             'half_width': False
         }
-
-    
+    def double64(self, r):
+        (r,) = r
+        return {
+            'register': str(r),
+            'width' : 64
+        }
+    def float32(self, r):
+        (r,) = r
+        return {
+            'register': str(r),
+            'width' : 32
+        }
+    def float16(self, r):
+        (r,) = r
+        return {
+            'register': str(r),
+            'width' : 16
+        }
+    def float_reg(self, r):
+        (r,) = r
+        r['type'] = 'fp'
+        return r
     def shifted_register(self, r):
         reg, stype, *by = r
         if by:

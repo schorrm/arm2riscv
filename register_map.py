@@ -163,3 +163,8 @@ for k, v in new_abi_register_map.items():
     if k.startswith('x'):
         register_map['w'+k[1:]] = v
 
+
+for i in range(32):
+    register_map[f'h{i}'] = f'f{i}'
+    register_map[f's{i}'] = f'f{i}'
+    register_map[f'd{i}'] = f'f{i}'

@@ -46,6 +46,10 @@ mode: CNAME
 %import common.NEWLINE
 %import .grammar.arm_globals.addr_mode
 %import .grammar.arm_globals.register
+%import .grammar.arm_globals.float_reg
+%import .grammar.arm_globals.float16
+%import .grammar.arm_globals.float32
+%import .grammar.arm_globals.double64
 %import .grammar.arm_globals.half_reg
 %import .grammar.arm_globals.full_reg
 %import .grammar.arm_globals.writeback
