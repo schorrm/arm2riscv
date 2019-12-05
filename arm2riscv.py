@@ -119,4 +119,6 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
             st = st.replace(' ', '\t', 1)
             print(f'\t{st}')
     else:
+        if line.strip().startswith('.xword'): # = dword, but not recognized on RV
+            line = line.replace('.xword', '.dword', 1)
         print(line.rstrip())
