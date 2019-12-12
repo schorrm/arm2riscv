@@ -4,4 +4,4 @@
 
 #echo ""
 #echo "Transpiled"
-aarch64-linux-gnu-gcc -S -o - $1 | python3 arm2riscv.py
+aarch64-linux-gnu-gcc -S -o - $1 | python3 arm2riscv.py $2
