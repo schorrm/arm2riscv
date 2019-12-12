@@ -113,8 +113,8 @@ class BranchAndLink(Arm64Instruction):
         ]
 
 # converting add: one arm instruction into one or two riscv instructions
-# 2 riscv instructions includes 1 temp register when converting add with too large immediate
-# otherwise one riscv instruction
+# 2 riscv instructions includes 1 temp register when converting add 
+# with oversize immediate. otherwise one riscv instruction
 class Add(Arm64Instruction):
     opcodes = ['add']
 
@@ -125,7 +125,7 @@ class Add(Arm64Instruction):
         if 'register' not in s2.keys():
             self.op = 'addi'
             if 'label' in s2.keys():
-                self.s2 = s2['label']
+                self.s2 = s2['label'] # TODO: undefined behavior!
             elif 'immediate' in s2.keys():
                 self.s2 = s2['immediate']
                 if isOversizeOffset(self.s2):
@@ -824,23 +824,45 @@ class Nop(Arm64Instruction):
 # Floating Point Instructions
 # Use this for all simple 1:1 conversions
 class FloatingPointSimplex(Arm64Instruction):
-    opcodes = ['fadd', 'fsub', 'fdiv', 'fmul']
-
-    opmap = {
-        'fadd' : 'fadd',
-        'fsub' : 'fsub',
-        'fdiv' : 'fdiv',
-        'fmul' : 'fmul',
-    }
+    opcodes = ['fadd', 'fsub', 'fdiv', 'fmul', 'fmax', 'fmin']
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         self.specific_regs = pullregs(operands)
         self.width = floatfmt(operands[0])
-        self.op = self.opmap[opcode]
+        self.op = opcode
 
     def emit_riscv(self):
         dst, s1, s2 = self.specific_regs
         self.riscv_instructions = [
             f'{self.op}.{self.width} {dst}, {s1}, {s2}'
+        ]
+
+class FloatingPointSingleArg(Arm64Instruction):
+    opcodes = ['fneg', 'fsqrt']
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        self.specific_regs = pullregs(operands)
+        self.width = floatfmt(operands[0])
+        self.op = opcode
+
+    def emit_riscv(self):
+        dst, s1 = self.specific_regs
+        self.riscv_instructions = [
+            f'{self.op}.{self.width} {dst}, {s1}'
+        ]
+    
+class FloatingPointFused(Arm64Instruction):
+    opcodes = ['fmadd', 'fmsub', 'fnmadd', 'fnmsub']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        self.specific_regs = pullregs(operands)
+        self.width = floatfmt(operands[0])
+        self.op = opcode
+
+    def emit_riscv(self):
+        dst, s1, s2, s3 = self.specific_regs
+        self.riscv_instructions = [
+            f'{self.op}.{self.width} {dst}, {s1}, {s2}, {s3}'
         ]
     

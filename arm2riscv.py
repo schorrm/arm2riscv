@@ -62,6 +62,8 @@ for line in sys.stdin:
         operands = [cleanup(operand) for operand in d['operation']['operands']]
         shifts = None
         for operand in operands:
+            # Find shifted registers and pull them out and 
+            # promote to shift_reg temp register
             shifts = get_shifts(operand)
             if shifts:
                 tmpreg = {
@@ -108,7 +110,7 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
         for ld in loads:
             # replace first space with tab for cleaner formatting
             ld = ld.replace(' ', '\t', 1)
-            print(f'\t{ld}')
+            print(f'\t{ld} # load of mmapped register')
         line.emit_riscv()
         for l in line.riscv_instructions:
             # replace first space with tab for cleaner formatting
@@ -117,7 +119,7 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
         for st in stores:
             # replace first space with tab for cleaner formatting
             st = st.replace(' ', '\t', 1)
-            print(f'\t{st}')
+            print(f'\t{st} # store of mmapped register')
     else:
         if line.strip().startswith('.xword'): # = dword, but not recognized on RV
             line = line.replace('.xword', '.dword', 1)

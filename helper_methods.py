@@ -10,7 +10,6 @@ def allocate_registers(registers):
     current = 0
     loads = []
     stores = []
-    # TODO: replace with more efficient version with pointers
     for i in range(len(registers)):
         r = registers[i]
         mapped = register_map[r]
