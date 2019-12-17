@@ -13,6 +13,8 @@ if not os.path.isdir(BIN_DIR):
 success = 0
 total  = len(os.listdir(CODE_DIR))
 
+# diffs = []
+
 for fn in tqdm(os.listdir(CODE_DIR)):
     fp = f'{CODE_DIR}/{fn}'
     bin_base = fn.split('.')[0]
@@ -31,6 +33,14 @@ for fn in tqdm(os.listdir(CODE_DIR)):
     if transpiled == basic:
         success += 1
     else:
-        print('failed test', fn)
+        tqdm.write(f'failed test {fn}')
+        # diffs.append([fn, basic, transpiled])
 
 print(f'Passed {success} / {total} tests')
+
+# for fn, reference, transpiled in diffs:
+#     print(f'Failed test: {fn}')
+#     print('Should have been:')
+#     print(str(reference))
+#     print('Was:')
+#     print(str(transpiled))
