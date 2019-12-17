@@ -17,12 +17,6 @@ def isreg(d):
     return False
 
 
-def isOversizeOffset(o):
-    if type(o) == int:
-        return o >= 2048 or o < -2048
-    return False
-
-
 def wfreg(r):
     if 'half_width' in r.keys():
         if r['half_width']:
@@ -191,10 +185,6 @@ class Arm64Instruction:
         self.synthesize()
 
 
-def pullregs(operands):
-    return [r['register'] for r in operands]
-
-
 class UnsignedMultiplyAddLong(Arm64Instruction):
     """converting umaddl: one arm instruction into two riscv instructions using one temp register"""
     opcodes = ['umaddl']
@@ -223,10 +213,10 @@ class SignExtendWord(Arm64Instruction):
             f'sext.w {xd}, {wn}'
         ]
 
-# converting bl: one arm instruction into one riscv instruction
-
 
 class BranchAndLink(Arm64Instruction):
+    """BL is completely equivalent to a call
+    """
     opcodes = ['bl']
 
     def __init__(self, opcode, operands):
@@ -251,10 +241,9 @@ class Add(Arm64Instruction):
             f'add{self.iflag}{self.wflag} {dest}, {s1}, {s2}'
         ]
 
-# converting adrp: one arm instruction into one riscv instruction
-
-
 class AddressPCRelative(Arm64Instruction):
+    """ADRP works like LUI in practice, at least w/ GCC
+    """
     opcodes = ['adrp']
 
     def __init__(self, opcode, operands):
