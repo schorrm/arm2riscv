@@ -241,6 +241,7 @@ class Add(Arm64Instruction):
             f'add{self.iflag}{self.wflag} {dest}, {s1}, {s2}'
         ]
 
+
 class AddressPCRelative(Arm64Instruction):
     """ADRP works like LUI in practice, at least w/ GCC
     """
@@ -403,7 +404,6 @@ class Subtract(Arm64Instruction):
 class Branch(Arm64Instruction):
     """ Branch is jump, nothing else to it """
     opcodes = ['b']
-    # add conditionals to here? or separately?
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
@@ -418,8 +418,6 @@ class Shifts(Arm64Instruction):
     """
 
     opcodes = ['lsl', 'lsr', 'asr']
-    # May need to be fed into by implied shifts in OP2, tbd
-
     opmap = {
         'lsl': 'sll',
         'lsr': 'srl',
