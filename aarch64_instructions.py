@@ -449,6 +449,12 @@ LBU rd,offset(rs1)	Load Byte Unsigned	rd ← u8[rs1 + offset]
 LHU rd,offset(rs1)	Load Half Unsigned	rd ← u16[rs1 + offset]
 LWU rd,offset(rs1)	Load Word Unsigned	rd ← u32[rs1 + offset]
 LD rd,offset(rs1)	Load Double	rd ← u64[rs1 + offset]
+
+RISC-V stores
+SB rs2,offset(rs1)	Store Byte	u8[rs1 + offset] ← rs2
+SH rs2,offset(rs1)	Store Half	u16[rs1 + offset] ← rs2
+SW rs2,offset(rs1)	Store Word	u32[rs1 + offset] ← rs2
+SD rs2,offset(rs1)	Store Double	u64[rs1 + offset] ← rs2
 """
 
 # converting ldr, ldrp, ldrsw or ldrsh: one arm instruction
@@ -456,35 +462,39 @@ LD rd,offset(rs1)	Load Double	rd ← u64[rs1 + offset]
 # using temp for some of them
 
 
-class LoadRegister(Arm64Instruction):
-    opcodes = ['ldr', 'ldrb', 'ldrsw', 'ldrsh']
+class LoadStoreRegister(Arm64Instruction):
+    """ The behavior here is roughly equivalent for L/S.
+    """
+    opcodes = ['ldr', 'ldrb', 'ldrsw', 'ldrsh', 'str', 'strh', 'strb']
     opmap = {
         'ldrb' : 'lb',
         'ldrsh' : 'lh',
         'ldrsw' : 'lw',
         'ldr' : 'ld',
+        'str' : 'sd',
+        'strh': 'sh',
+        'strb': 'sb' 
     }
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
+        if self.opcode[0] == 's':
+            self.num_reg_writes = 0
+
         r1, sp = operands[:2]
 
         self.base_op = self.opmap[self.opcode]
 
-        if self.opcode != 'ldr':
+        if self.opcode not in ('ldr', 'str'):
             pass
         elif r1['type'] == 'fp':
-            self.base_op = 'fl' + get_fl_flag(r1)
+            self.base_op = 'f' + self.opcode[0] + get_fl_flag(r1)
             self.float_st = True
         elif self.wflag:
-            self.base_op = 'lw'
+            self.base_op = self.opcode[0] + 'w'
 
         self.reg_offset = False
-
-        # self.offset = 0
-        # if 'offset' in sp.keys():
-        #     self.offset = sp['offset']
 
         if len(operands) == 3:
             post_index = True
@@ -494,18 +504,6 @@ class LoadRegister(Arm64Instruction):
             self.final_offset = self.offset
         else:  # Signed Offset
             self.final_offset = None
-
-        # if isreg(self.offset):
-        #     self.required_temp_regs = ['temp']
-        #     self.reg_offset = self.offset['register']
-        #     self.specific_regs.append(self.reg_offset)
-
-        # elif isOversizeOffset(self.offset):  # Max size for offset?
-        #     self.required_temp_regs = ['shift_temp']
-
-        # if self.final_offset:
-        #     if isOversizeOffset(self.final_offset):
-        #         self.required_temp_regs = ['shift_temp']
 
         # TODO: check the specifics of relocation well
         if sp.get('original_mode'):
@@ -542,103 +540,96 @@ class LoadRegister(Arm64Instruction):
                 )
 
 
-"""
-RISC-V stores
-SB rs2,offset(rs1)	Store Byte	u8[rs1 + offset] ← rs2
-SH rs2,offset(rs1)	Store Half	u16[rs1 + offset] ← rs2
-SW rs2,offset(rs1)	Store Word	u32[rs1 + offset] ← rs2
-SD rs2,offset(rs1)	Store Double	u64[rs1 + offset] ← rs2
-"""
 
 # converting str, strh, or strb: one arm instruction into two, three or four riscv instructions
 # using temp register for some of them, depends on the offset
 
 
-class StoreRegister(Arm64Instruction):
-    opcodes = ['str', 'strh', 'strb']
+# class StoreRegister(Arm64Instruction):
+#     opcodes = ['str', 'strh', 'strb']
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
+#     def __init__(self, opcode, operands):
+#         super().__init__(opcode, operands)
 
-        r1, sp = operands[:2]
+#         r1, sp = operands[:2]
 
-        self.float_st = False
-        if opcode == 'strb':
-            self.base_op = 'sb'
-        elif opcode == 'strh':
-            self.base_op = 'sh'
-        elif r1['type'] == 'fp':
-            store_suffix = 'w' if r1['width'] == 32 else floatfmt(r1)
-            self.base_op = 'fs' + store_suffix
-            self.float_st = True
-        elif r1['half_width']:
-            self.base_op = 'sw'
-        else:
-            self.base_op = 'sd'
+#         self.float_st = False
+#         if opcode == 'strb':
+#             self.base_op = 'sb'
+#         elif opcode == 'strh':
+#             self.base_op = 'sh'
+#         elif r1['type'] == 'fp':
+#             store_suffix = 'w' if r1['width'] == 32 else floatfmt(r1)
+#             self.base_op = 'fs' + store_suffix
+#             self.float_st = True
+#         elif r1['half_width']:
+#             self.base_op = 'sw'
+#         else:
+#             self.base_op = 'sd'
 
-        self.reg_offset = False
+#         self.reg_offset = False
 
-        # Becomes either SW or SD, depending on reg width
+#         # Becomes either SW or SD, depending on reg width
 
-        self.offset = 0
-        if 'offset' in sp.keys():
-            self.offset = sp['offset']
+#         self.offset = 0
+#         if 'offset' in sp.keys():
+#             self.offset = sp['offset']
 
-        self.specific_regs = [r1['register'],  sp['register']]
-        if len(operands) == 3:
-            post_index = True
-            self.final_offset = operands[3]['immediate']
-        elif sp['writeback']:
-            pre_index = True
-            self.final_offset = sp['offset']
-        else:  # Signed Offset
-            self.final_offset = None
+#         self.specific_regs = [r1['register'],  sp['register']]
+#         if len(operands) == 3:
+#             post_index = True
+#             self.final_offset = operands[3]['immediate']
+#         elif sp['writeback']:
+#             pre_index = True
+#             self.final_offset = sp['offset']
+#         else:  # Signed Offset
+#             self.final_offset = None
 
-        if isreg(self.offset):
-            self.required_temp_regs = ['temp']
-            self.reg_offset = self.offset['register']
-            self.specific_regs.append(self.reg_offset)
+#         if isreg(self.offset):
+#             self.required_temp_regs = ['temp']
+#             self.reg_offset = self.offset['register']
+#             self.specific_regs.append(self.reg_offset)
 
-        elif isOversizeOffset(self.offset) or isOversizeOffset(self.final_offset):
-            self.required_temp_regs = ['temp']
+#         elif isOversizeOffset(self.offset) or isOversizeOffset(self.final_offset):
+#             self.required_temp_regs = ['temp']
 
-    def emit_riscv(self):
-        r1, sp, *self.reg_offset = self.specific_regs
-        if self.reg_offset:
-            self.reg_offset = self.reg_offset[0]
-        if self.required_temp_regs and not self.reg_offset:
-            temp = self.required_temp_regs[0]
-            self.riscv_instructions = [
-                f'li {temp}, {self.offset}',
-                f'add {temp}, {temp}, {sp}',
-                f'{self.base_op} {r1}, ({temp})'
-            ]
-            if self.final_offset:
-                self.riscv_instructions.append(
-                    f'mv {sp}, {temp}'
-                )
+#     def emit_riscv(self):
+#         r1, sp, *self.reg_offset = self.specific_regs
+#         if self.reg_offset:
+#             self.reg_offset = self.reg_offset[0]
+#         if self.required_temp_regs and not self.reg_offset:
+#             temp = self.required_temp_regs[0]
+#             self.riscv_instructions = [
+#                 f'li {temp}, {self.offset}',
+#                 f'add {temp}, {temp}, {sp}',
+#                 f'{self.base_op} {r1}, ({temp})'
+#             ]
+#             if self.final_offset:
+#                 self.riscv_instructions.append(
+#                     f'mv {sp}, {temp}'
+#                 )
 
-        elif not self.reg_offset:
-            self.riscv_instructions = [
-                f'{self.base_op} {r1}, {self.offset}({sp})',
-            ]
+#         elif not self.reg_offset:
+#             self.riscv_instructions = [
+#                 f'{self.base_op} {r1}, {self.offset}({sp})',
+#             ]
 
-            if self.final_offset:
-                self.riscv_instructions.append(
-                    f'addi {sp}, {sp}, {self.final_offset}'
-                )
+#             if self.final_offset:
+#                 self.riscv_instructions.append(
+#                     f'addi {sp}, {sp}, {self.final_offset}'
+#                 )
 
-        elif self.reg_offset:
-            temp = self.required_temp_regs[0]
-            self.riscv_instructions = [
-                f'add {temp}, {sp}, {self.reg_offset}',
-                f'{self.base_op} {r1}, ({temp})'
-            ]
+#         elif self.reg_offset:
+#             temp = self.required_temp_regs[0]
+#             self.riscv_instructions = [
+#                 f'add {temp}, {sp}, {self.reg_offset}',
+#                 f'{self.base_op} {r1}, ({temp})'
+#             ]
 
-            if self.final_offset:
-                self.riscv_instructions.append(
-                    f'mv {sp}, {temp}'
-                )
+#             if self.final_offset:
+#                 self.riscv_instructions.append(
+#                     f'mv {sp}, {temp}'
+#                 )
 
 
 class Compare(Arm64Instruction):
