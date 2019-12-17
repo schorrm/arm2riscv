@@ -144,21 +144,16 @@ class Arm64Instruction:
     def emit_riscv(self):
         self.synthesize()
 
-
 def pullregs(operands):
     return [r['register'] for r in operands]
 
-
-# converting umaddl: one arm instruction into two riscv instructions using one temp register
 class UnsignedMultiplyAddLong(Arm64Instruction):
+    """converting umaddl: one arm instruction into two riscv instructions using one temp register"""
     opcodes = ['umaddl']
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
-        regs = [x['register'] for x in operands[:4]]
-        xd, wm, wn, xa = regs
         self.required_temp_regs = ['temp']
-        self.specific_regs = [xd, wm, wn, xa]
 
     def emit_riscv(self):
         temp = self.required_temp_regs[0]
@@ -220,8 +215,6 @@ class AddressPCRelative(Arm64Instruction):
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
-        dest = operands[0]['register']
-        self.specific_regs = [dest]
         self.label = operands[1]['label']
         if 'is_load' not in operands[1].keys():
             self.label = f'%hi({self.label})'
@@ -259,6 +252,7 @@ class Move(Arm64Instruction):
 
 class StorePair(Arm64Instruction):
     opcodes = ['stp']
+    num_reg_writes = 0 
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
@@ -299,6 +293,7 @@ class StorePair(Arm64Instruction):
 # three load instruction when sp changes, otherwise two
 class LoadPair(Arm64Instruction):
     opcodes = ['ldp']
+    num_reg_writes = 2
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
@@ -417,7 +412,7 @@ class Subtract(Arm64Instruction):
             self.riscv_instructions.append(
                 f'mv {cond}, {dest} # update flags'
             )
-            
+
 
 class Branch(Arm64Instruction):
     """ Branch is jump, nothing else to it """
@@ -431,17 +426,18 @@ class Branch(Arm64Instruction):
             f'j {target}'
         ]
 
+
 class Shift(Arm64Instruction):
     """ convert shifts to corresponding name in RISC-V
     """
-    
+
     opcodes = ['lsl', 'lsr', 'asr']
     # May need to be fed into by implied shifts in OP2, tbd
 
     opmap = {
-        'lsl' : 'sll',
-        'lsr' : 'srl',
-        'asr' : 'sra',
+        'lsl': 'sll',
+        'lsr': 'srl',
+        'asr': 'sra',
     }
 
     def emit_riscv(self):
@@ -668,47 +664,30 @@ class StoreRegister(Arm64Instruction):
                 )
 
 
-# Placeholder Compare -- may be swapped out later for fusion
-# converting cmp: one arm instruction into one riscv instruction
-# result is saved in the compare register
 class Compare(Arm64Instruction):
-    # may get subs too
+    """Compare: sets the comparison arithmetically."""
     opcodes = ['cmp']
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
-
-        left, right = operands
-        left = left['register']
-
-        self.specific_regs = [COMPARE, left]
-
-        self.immediate = not isreg(right)
-
-        if isreg(right):
-            right = right['register']
-            self.specific_regs.append(right)
-        else:
-            right = right['immediate']
-            self.immediate_arg = right
+        self.specific_regs.append(COMPARE)
 
     def emit_riscv(self):
+        lhs, rhs = self.get_args()
+        cmpreg = self.specific_regs[-1]
         op = 'sub'
-        cmpreg, left, *right = self.specific_regs
-        if self.immediate:
-            right = -self.immediate_arg
+        if self.is_safe_imm(self.operands[1]):
+            rhs = -rhs
             op = 'addi'
-        else:
-            right = right[0]
         self.riscv_instructions = [
-            f'{op} {cmpreg}, {left}, {right}'
+            f'{op} {cmpreg}, {lhs}, {rhs}'
         ]
-
-# converting ble, blt, bge, bgt, beq or bne: one arm instruction into one riscv instruction
-# using the result of the last compare from the compare register
 
 
 class ConditionalBranch(Arm64Instruction):
+    """Conditional branches are about the same, just check the last comparison to zero
+
+    """
     opcodes = ['ble', 'blt', 'bge', 'bgt', 'beq', 'bne']
 
     def __init__(self, opcode, operands):
@@ -729,89 +708,58 @@ class ConditionalBranch(Arm64Instruction):
 
 
 class ConditionalSelect(Arm64Instruction):
+    """Conditional Select uses a local branch to guard the condition
+
+    """
     opcodes = ['csel']
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
         self.cc = operands[3]['label'].lower()
-        self.specific_regs = [r['register'] for r in operands[:3]] + [COMPARE]
+        self.specific_regs.append(COMPARE)
         # this allows cutting out a branch and simplifying
         self.required_temp_regs = ['temp']
-        self.wf = wfreg(operands[0])
 
     def emit_riscv(self):
         dest, s1, s2, cond = self.specific_regs
         temp = self.required_temp_regs[0]
         self.riscv_instructions = [
-            f'add{self.wf} {temp}, {s1}, x0',
+            f'add{self.wflag} {temp}, {s1}, x0',
             f'b{self.cc} {cond}, x0, 999999f',
-            f'add{self.wf} {temp}, {s2}, x0',
+            f'add{self.wflag} {temp}, {s2}, x0',
             f'999999:',
-            f'add{self.wf} {dest}, x0, {temp}'
+            f'add{self.wflag} {dest}, x0, {temp}'
         ]
 
 
 # converting exclusive-or: one arm instruction into one riscv instruction
 class ExclusiveOr(Arm64Instruction):
+    """ EOR = XOR, 1:1 conversion
+    """
     opcodes = ['eor']
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-
-        dest, r1, op2 = operands
-        self.specific_regs = [dest['register'], r1['register']]
-
-        self.immediate = not isreg(op2)
-        self.baseop = 'xor' if isreg(op2) else 'xori'
-        if not self.immediate:
-            self.specific_regs.append(op2['register'])
-        else:
-            self.immediate_arg = op2['immediate']
-
     def emit_riscv(self):
-        dest, r1, *r2 = self.specific_regs
-        if self.immediate:
-            r2 = self.immediate_arg
-        else:
-            r2 = r2[0]
-        self.riscv_instructions = [
-            f'{self.baseop} {dest}, {r1}, {r2}'
+        dest, s1, s2 = self.get_args()
+        self.riscv_instructions += [
+            f'xor{self.iflag} {dest}, {s1}, {s2}'
         ]
-
-# converting Or: one arm instruction into one riscv instruction
 
 
 class Or(Arm64Instruction):
+    """ Or = Or, 1:1 conversion
+    """
     opcodes = ['orr']
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-
-        dest, r1, op2 = operands
-        self.specific_regs = [dest['register'], r1['register']]
-
-        self.immediate = not isreg(op2)
-        self.baseop = 'or' if isreg(op2) else 'ori'
-        if not self.immediate:
-            self.specific_regs.append(op2['register'])
-        else:
-            self.immediate_arg = op2['immediate']
-
     def emit_riscv(self):
-        dest, r1, *r2 = self.specific_regs
-        if self.immediate:
-            r2 = self.immediate_arg
-        else:
-            r2 = r2[0]
-        self.riscv_instructions = [
-            f'{self.baseop} {dest}, {r1}, {r2}'
+        dest, r1, r2 = self.get_args()
+        self.riscv_instructions += [
+            f'or{self.wflag} {dest}, {r1}, {r2}'
         ]
-
-# converting nop: one arm instruction into one riscv instruction
 
 
 class Nop(Arm64Instruction):
+    """ As simple as it gets"""
     opcodes = ['nop']
 
     def __init__(self, opcode, operands):
@@ -824,46 +772,27 @@ class Nop(Arm64Instruction):
 class FloatingPointSimplex(Arm64Instruction):
     opcodes = ['fadd', 'fsub', 'fdiv', 'fmul', 'fmax', 'fmin']
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-        self.specific_regs = pullregs(operands)
-        self.width = floatfmt(operands[0])
-        self.op = opcode
-
     def emit_riscv(self):
         dst, s1, s2 = self.specific_regs
         self.riscv_instructions = [
-            f'{self.op}.{self.width} {dst}, {s1}, {s2}'
+            f'{self.opcode}.{self.fp_wflag} {dst}, {s1}, {s2}'
         ]
 
 
 class FloatingPointSingleArg(Arm64Instruction):
     opcodes = ['fneg', 'fsqrt']
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-        self.specific_regs = pullregs(operands)
-        self.width = floatfmt(operands[0])
-        self.op = opcode
-
     def emit_riscv(self):
         dst, s1 = self.specific_regs
         self.riscv_instructions = [
-            f'{self.op}.{self.width} {dst}, {s1}'
+            f'{self.opcode}.{self.fp_wflag} {dst}, {s1}'
         ]
 
 
 class FloatingPointFused(Arm64Instruction):
     opcodes = ['fmadd', 'fmsub', 'fnmadd', 'fnmsub']
-
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-        self.specific_regs = pullregs(operands)
-        self.width = floatfmt(operands[0])
-        self.op = opcode
-
     def emit_riscv(self):
         dst, s1, s2, s3 = self.specific_regs
         self.riscv_instructions = [
-            f'{self.op}.{self.width} {dst}, {s1}, {s2}, {s3}'
+            f'{self.opcode}.{self.fp_wflag} {dst}, {s1}, {s2}, {s3}'
         ]
