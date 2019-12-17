@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-import sys
 from typing import List
 from instr_helpers import *
 
@@ -9,7 +8,6 @@ SHIFT_TEMP = 'shift_temp'
 OP2_OVERSIZE = 'shift_temp'  # OP2 Imm / Shift should be mutually exclusive?
 TEMP = 'temp'
 
-# little helper functions
 
 class Arm64Instruction:
     imm_width = 12
