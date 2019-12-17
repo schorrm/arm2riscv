@@ -144,8 +144,10 @@ class Arm64Instruction:
     def emit_riscv(self):
         self.synthesize()
 
+
 def pullregs(operands):
     return [r['register'] for r in operands]
+
 
 class UnsignedMultiplyAddLong(Arm64Instruction):
     """converting umaddl: one arm instruction into two riscv instructions using one temp register"""
@@ -196,15 +198,11 @@ class Add(Arm64Instruction):
     """
     opcodes = ['add']
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-        self.op = 'add' + self.iflag + self.wflag
-
     def emit_riscv(self):
         super().emit_riscv()
         dest, s1, s2 = self.get_args()
         self.riscv_instructions += [
-            f'{self.op} {dest}, {s1}, {s2}'
+            f'add{self.iflag}{self.wflag} {dest}, {s1}, {s2}'
         ]
 
 # converting adrp: one arm instruction into one riscv instruction
@@ -252,7 +250,7 @@ class Move(Arm64Instruction):
 
 class StorePair(Arm64Instruction):
     opcodes = ['stp']
-    num_reg_writes = 0 
+    num_reg_writes = 0
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
@@ -402,15 +400,13 @@ class Subtract(Arm64Instruction):
         dest, s1, s2 = self.get_args()
         if self.immediate_value:
             s2 = self.immediate_value
-
         self.riscv_instructions += [
             f'{self.op} {dest}, {s1}, {s2}'
         ]
-
         if self.opcode == 'subs':
             cond = self.specific_regs[-1]
             self.riscv_instructions.append(
-                f'mv {cond}, {dest} # update flags'
+                f'mv {cond}, {dest} # simulating updating flags'
             )
 
 
@@ -427,7 +423,7 @@ class Branch(Arm64Instruction):
         ]
 
 
-class Shift(Arm64Instruction):
+class Shifts(Arm64Instruction):
     """ convert shifts to corresponding name in RISC-V
     """
 
@@ -732,29 +728,19 @@ class ConditionalSelect(Arm64Instruction):
             f'add{self.wflag} {dest}, x0, {temp}'
         ]
 
-
-# converting exclusive-or: one arm instruction into one riscv instruction
-class ExclusiveOr(Arm64Instruction):
-    """ EOR = XOR, 1:1 conversion
+class BitwiseOperations(Arm64Instruction):
+    """ Convert Bitwise operations (same pattern)
     """
-    opcodes = ['eor']
-
+    opcodes = ['eor', 'orr', 'and']
+    opmap = {
+        'eor' : 'xor',
+        'orr' : 'or',
+        'and' : 'and',
+    }
     def emit_riscv(self):
         dest, s1, s2 = self.get_args()
         self.riscv_instructions += [
-            f'xor{self.iflag} {dest}, {s1}, {s2}'
-        ]
-
-
-class Or(Arm64Instruction):
-    """ Or = Or, 1:1 conversion
-    """
-    opcodes = ['orr']
-
-    def emit_riscv(self):
-        dest, r1, r2 = self.get_args()
-        self.riscv_instructions += [
-            f'or{self.wflag} {dest}, {r1}, {r2}'
+            f'{self.opmap[self.opcode]}{self.iflag} {dest}, {s1}, {s2}'
         ]
 
 
@@ -768,7 +754,26 @@ class Nop(Arm64Instruction):
 
 
 # Floating Point Instructions
+
+class FloatingPointMove(Arm64Instruction):
+    opcodes = ['fmov']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        if self.fp_wflag:
+            self.op = f'fmv.{self.fp_wflag}.x'
+        else:
+            self.op = f'fmv.x.{get_fl_flag(operands[1])}'
+
+    def emit_riscv(self):
+        dest, src = self.get_args()
+        self.riscv_instructions += [
+            f'{self.op} {dest}, {src}'
+        ]
+
 # Use this for all simple 1:1 conversions
+
+
 class FloatingPointSimplex(Arm64Instruction):
     opcodes = ['fadd', 'fsub', 'fdiv', 'fmul', 'fmax', 'fmin']
 
@@ -791,8 +796,16 @@ class FloatingPointSingleArg(Arm64Instruction):
 
 class FloatingPointFused(Arm64Instruction):
     opcodes = ['fmadd', 'fmsub', 'fnmadd', 'fnmsub']
+
+    opmap = {
+        'fmadd': 'fmadd',
+        'fnmadd': 'fnmadd',
+        'fmsub': 'fnmsub',  # not sure why but fmsub and fnmsub seem to swap
+        'fnmsub': 'fmsub',
+    }
+
     def emit_riscv(self):
         dst, s1, s2, s3 = self.specific_regs
         self.riscv_instructions = [
-            f'{self.opcode}.{self.fp_wflag} {dst}, {s1}, {s2}, {s3}'
+            f'{self.opmap[self.opcode]}.{self.fp_wflag} {dst}, {s1}, {s2}, {s3}'
         ]
