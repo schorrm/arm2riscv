@@ -57,6 +57,12 @@ fpfmtmap = {
     128: 'q'
 }
 
+float_load_fmt_map = {
+    32: 'w',
+    64: 'd',
+    128: 'q'
+}
+
 # Return the appropriate RISC-V char suffix for the width
 
 
@@ -67,7 +73,12 @@ def floatfmt(reg):
 def get_fl_flag(reg):
     if type(reg) == dict:
         if 'width' in reg.keys():
-            return floatfmt(reg)
+            return fpfmtmap[reg['width']]
+
+def get_fl_ld_flag(reg):
+    if type(reg) == dict:
+        if 'width' in reg.keys():
+            return float_load_fmt_map[reg['width']]
 
 
 class Arm64Instruction:
@@ -244,55 +255,21 @@ class Move(Arm64Instruction):
             f'{op} {dest}, {src}'
         ]
 
-# converting stp: one arm instruction into two or three riscv instructions
-# three store instruction when sp changes, otherwise two
-class StorePair(Arm64Instruction):
-    opcodes = ['stp']
-    num_reg_writes = 0
 
+class LoadStorePair(Arm64Instruction):
+    """Load and Store pair have almost identical behavior.
+    
+    Most of the weird stuff is just accounting for writeback.
+    """
+    opcodes = ['ldp', 'stp']
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
-        # Becomes either sw or sd, depending on reg width
-        self.base_op = 'sw' if self.wflag else 'sd'
-
-        sp = self.operands[2]
-        self.offset = 0
-        if 'offset' in sp.keys():
-            self.offset = sp['offset']
-        if len(operands) == 4:
-            post_index = True
-            self.final_offset = operands[3]['immediate']
-        elif sp['writeback']:
-            pre_index = True
-            self.final_offset = sp['offset']
-        else:  # Signed Offset
-            self.final_offset = None
-
-    def emit_riscv(self):
-        r1, r2, sp = self.specific_regs
-        self.riscv_instructions = [
-            f'{self.base_op} {r1}, {self.offset}({sp})',
-            f'{self.base_op} {r2}, {self.offset + 8}({sp})'
-        ]
-
-        if self.final_offset:
-            self.riscv_instructions.append(
-                f'addi {sp}, {sp}, {self.final_offset}'
-            )
-
-
-# converting ldp: one arm instruction into two or three riscv instructions
-# three load instruction when sp changes, otherwise two
-class LoadPair(Arm64Instruction):
-    opcodes = ['ldp']
-    num_reg_writes = 2
-
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
+        self.num_reg_writes = 0 if opcode == 'stp' else 2
 
         # Becomes either lw or ld, depending on reg width
-        self.base_op = 'lw' if self.wflag else 'ld'
+        addon = 'w' if self.wflag else 'd'
+        self.base_op = self.opcode[0] + addon
 
         sp = self.operands[2]
         self.offset = 0
@@ -453,24 +430,27 @@ LD rd,offset(rs1)	Load Double	rd ← u64[rs1 + offset]
 
 class LoadRegister(Arm64Instruction):
     opcodes = ['ldr', 'ldrb', 'ldrsw', 'ldrsh']
+    opmap = {
+        'ldrb' : 'lb',
+        'ldrsh' : 'lh',
+        'ldrsw' : 'lw',
+        'ldr' : 'ld',
+    }
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
         r1, sp = operands[:2]
 
-        if opcode == 'ldrb':
-            self.base_op = 'lb'
-        elif opcode == 'ldrsh':
-            self.base_op = 'lh'
+        self.base_op = self.opmap[self.opcode]
+
+        if self.opcode != 'ldr':
+            pass
         elif r1['type'] == 'fp':
-            store_suffix = 'w' if r1['width'] == 32 else floatfmt(r1)
-            self.base_op = 'fl' + store_suffix
+            self.base_op = 'fl' + get_fl_flag(r1)
             self.float_st = True
-        elif r1['half_width'] or opcode == 'ldrsw':
+        elif self.wflag:
             self.base_op = 'lw'
-        else:
-            self.base_op = 'ld'
 
         self.reg_offset = False
 
