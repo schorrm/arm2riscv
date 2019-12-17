@@ -2,6 +2,7 @@
 
 import sys
 from typing import List
+from instr_helpers import *
 
 COMPARE = 'compare'  # name of register target for comparef
 SHIFT_TEMP = 'shift_temp'
@@ -9,74 +10,6 @@ OP2_OVERSIZE = 'shift_temp'  # OP2 Imm / Shift should be mutually exclusive?
 TEMP = 'temp'
 
 # little helper functions
-
-
-def isreg(d):
-    if type(d) == dict:
-        return 'register' in d.keys()
-    return False
-
-
-def wfreg(r):
-    if 'half_width' in r.keys():
-        if r['half_width']:
-            return 'w'
-    return ''
-
-
-def safe_pullregs(operands):
-    rs = []
-    for o in operands:
-        if 'register' in o.keys():
-            rs.append(o['register'])
-    return rs
-
-
-def pulltypes(operands):
-    o_types = []
-    for o in operands:
-        if 'register' in o.keys():
-            o_types.append('register')
-        elif 'immediate' in o.keys():
-            o_types.append('immediate')
-        elif 'label' in o.keys():
-            o_types.append('label')
-        else:
-            o_types.append(None)
-    return o_types
-
-
-fpfmtmap = {
-    16: 'h',
-    32: 's',
-    64: 'd',
-    128: 'q'
-}
-
-float_load_fmt_map = {
-    32: 'w',
-    64: 'd',
-    128: 'q'
-}
-
-# Return the appropriate RISC-V char suffix for the width
-
-
-def floatfmt(reg):
-    return fpfmtmap[reg['width']]
-
-
-def get_fl_flag(reg):
-    if type(reg) == dict:
-        if 'width' in reg.keys():
-            return fpfmtmap[reg['width']]
-
-
-def get_fl_ld_flag(reg):
-    if type(reg) == dict:
-        if 'width' in reg.keys():
-            return float_load_fmt_map[reg['width']]
-
 
 class Arm64Instruction:
     imm_width = 12
@@ -92,7 +25,7 @@ class Arm64Instruction:
                 return True
         return False
 
-    def is_oversized_int(self, x):
+    def is_oversized_int(self, x) -> bool:
         if type(x) != int:
             return False
         if x not in range(- (2 ** (self.imm_width-1) + 1), 2 ** (self.imm_width-1)):
@@ -121,7 +54,7 @@ class Arm64Instruction:
         if not operands:  # safeguard against nops, rets and other stuff like that
             return
 
-        # WATCH THIS
+        # See if this can be made cleaner
         for operand in operands:
             if self.is_oversized_imm(operand):
                 self.needs_synthesis.append(operand['immediate'])
@@ -167,7 +100,7 @@ class Arm64Instruction:
                     rs.append(op['immediate'])
         return rs
 
-    def synthesize(self):
+    def emit_riscv(self):
         for immediate, reg in zip(self.needs_synthesis, self.required_temp_regs):
             self.riscv_instructions.append(
                 f'li {reg}, {immediate}'
@@ -181,12 +114,10 @@ class Arm64Instruction:
                 f'add {self.required_temp_regs[-1]}, {x}, {y} # dealt with reg offset'
             )
 
-    def emit_riscv(self):
-        self.synthesize()
-
 
 class UnsignedMultiplyAddLong(Arm64Instruction):
-    """converting umaddl: one arm instruction into two riscv instructions using one temp register"""
+    """converting umaddl: one arm instruction into two riscv instructions using one temp register
+    """
     opcodes = ['umaddl']
 
     def __init__(self, opcode, operands):
@@ -246,6 +177,7 @@ class AddressPCRelative(Arm64Instruction):
     """ADRP works like LUI in practice, at least w/ GCC
     """
     opcodes = ['adrp']
+    imm_width = 20
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
@@ -500,10 +432,6 @@ class LoadStoreRegister(Arm64Instruction):
                 self.base_op = 'add'
                 self.offset = sp['offset']
 
-    # TODO: Change this to use the destination register if D != SP
-    # Note: this requires moving the offset commit to the line before the load,
-    # instead of the line after
-
     def emit_riscv(self):
         super().emit_riscv()
         dest, sp, *reg_offset = self.specific_regs
@@ -642,10 +570,10 @@ class FloatingPointMove(Arm64Instruction):
             f'{self.op} {dest}, {src}'
         ]
 
-# Use this for all simple 1:1 conversions
-
 
 class FloatingPointSimplex(Arm64Instruction):
+    """for the simple FP args -- 1:1
+    """
     opcodes = ['fadd', 'fsub', 'fdiv', 'fmul', 'fmax', 'fmin']
 
     def emit_riscv(self):
