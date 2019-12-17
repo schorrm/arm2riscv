@@ -77,6 +77,7 @@ def get_fl_flag(reg):
         if 'width' in reg.keys():
             return fpfmtmap[reg['width']]
 
+
 def get_fl_ld_flag(reg):
     if type(reg) == dict:
         if 'width' in reg.keys():
@@ -136,12 +137,14 @@ class Arm64Instruction:
                 if self.is_oversized_int(operand['offset']):
                     self.needs_synthesis.append(operand['offset'])
                     self.required_temp_regs.append(OP2_OVERSIZE)
-                    self.set_offset_reg = (len(self.specific_regs), self.specific_regs.index(operand['register']))
+                    self.set_offset_reg = (
+                        len(self.specific_regs), self.specific_regs.index(operand['register']))
                     self.specific_regs.append(OP2_OVERSIZE)
                 elif type(operand['offset']) == int:
                     self.offset = operand['offset']
                 elif isreg(operand['offset']):
-                    self.set_offset_reg = (len(self.specific_regs), self.specific_regs.index(operand['register']))
+                    self.set_offset_reg = (
+                        len(self.specific_regs), self.specific_regs.index(operand['register']))
                     self.specific_regs.append(operand['offset']['register'])
                     self.required_temp_regs.append(OP2_OVERSIZE)
 
@@ -290,10 +293,11 @@ class Move(Arm64Instruction):
 
 class LoadStorePair(Arm64Instruction):
     """Load and Store pair have almost identical behavior.
-    
+
     Most of the weird stuff is just accounting for writeback.
     """
     opcodes = ['ldp', 'stp']
+
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
@@ -457,23 +461,21 @@ SW rs2,offset(rs1)	Store Word	u32[rs1 + offset] ← rs2
 SD rs2,offset(rs1)	Store Double	u64[rs1 + offset] ← rs2
 """
 
-# converting ldr, ldrp, ldrsw or ldrsh: one arm instruction
-# into one, two, three or four riscv instructions
-# using temp for some of them
-
 
 class LoadStoreRegister(Arm64Instruction):
-    """ The behavior here is roughly equivalent for L/S.
+    """The behavior here is roughly equivalent for L/S.
+
+    Load and Store are mixed together because the SP behavior (the complicated part here) is basically identical.
     """
     opcodes = ['ldr', 'ldrb', 'ldrsw', 'ldrsh', 'str', 'strh', 'strb']
     opmap = {
-        'ldrb' : 'lb',
-        'ldrsh' : 'lh',
-        'ldrsw' : 'lw',
-        'ldr' : 'ld',
-        'str' : 'sd',
+        'ldrb': 'lb',
+        'ldrsh': 'lh',
+        'ldrsw': 'lw',
+        'ldr': 'ld',
+        'str': 'sd',
         'strh': 'sh',
-        'strb': 'sb' 
+        'strb': 'sb'
     }
 
     def __init__(self, opcode, operands):
@@ -538,98 +540,6 @@ class LoadStoreRegister(Arm64Instruction):
                 self.riscv_instructions.append(
                     f'addi {sp}, {sp}, {final_offset}'
                 )
-
-
-
-# converting str, strh, or strb: one arm instruction into two, three or four riscv instructions
-# using temp register for some of them, depends on the offset
-
-
-# class StoreRegister(Arm64Instruction):
-#     opcodes = ['str', 'strh', 'strb']
-
-#     def __init__(self, opcode, operands):
-#         super().__init__(opcode, operands)
-
-#         r1, sp = operands[:2]
-
-#         self.float_st = False
-#         if opcode == 'strb':
-#             self.base_op = 'sb'
-#         elif opcode == 'strh':
-#             self.base_op = 'sh'
-#         elif r1['type'] == 'fp':
-#             store_suffix = 'w' if r1['width'] == 32 else floatfmt(r1)
-#             self.base_op = 'fs' + store_suffix
-#             self.float_st = True
-#         elif r1['half_width']:
-#             self.base_op = 'sw'
-#         else:
-#             self.base_op = 'sd'
-
-#         self.reg_offset = False
-
-#         # Becomes either SW or SD, depending on reg width
-
-#         self.offset = 0
-#         if 'offset' in sp.keys():
-#             self.offset = sp['offset']
-
-#         self.specific_regs = [r1['register'],  sp['register']]
-#         if len(operands) == 3:
-#             post_index = True
-#             self.final_offset = operands[3]['immediate']
-#         elif sp['writeback']:
-#             pre_index = True
-#             self.final_offset = sp['offset']
-#         else:  # Signed Offset
-#             self.final_offset = None
-
-#         if isreg(self.offset):
-#             self.required_temp_regs = ['temp']
-#             self.reg_offset = self.offset['register']
-#             self.specific_regs.append(self.reg_offset)
-
-#         elif isOversizeOffset(self.offset) or isOversizeOffset(self.final_offset):
-#             self.required_temp_regs = ['temp']
-
-#     def emit_riscv(self):
-#         r1, sp, *self.reg_offset = self.specific_regs
-#         if self.reg_offset:
-#             self.reg_offset = self.reg_offset[0]
-#         if self.required_temp_regs and not self.reg_offset:
-#             temp = self.required_temp_regs[0]
-#             self.riscv_instructions = [
-#                 f'li {temp}, {self.offset}',
-#                 f'add {temp}, {temp}, {sp}',
-#                 f'{self.base_op} {r1}, ({temp})'
-#             ]
-#             if self.final_offset:
-#                 self.riscv_instructions.append(
-#                     f'mv {sp}, {temp}'
-#                 )
-
-#         elif not self.reg_offset:
-#             self.riscv_instructions = [
-#                 f'{self.base_op} {r1}, {self.offset}({sp})',
-#             ]
-
-#             if self.final_offset:
-#                 self.riscv_instructions.append(
-#                     f'addi {sp}, {sp}, {self.final_offset}'
-#                 )
-
-#         elif self.reg_offset:
-#             temp = self.required_temp_regs[0]
-#             self.riscv_instructions = [
-#                 f'add {temp}, {sp}, {self.reg_offset}',
-#                 f'{self.base_op} {r1}, ({temp})'
-#             ]
-
-#             if self.final_offset:
-#                 self.riscv_instructions.append(
-#                     f'mv {sp}, {temp}'
-#                 )
 
 
 class Compare(Arm64Instruction):
@@ -700,15 +610,17 @@ class ConditionalSelect(Arm64Instruction):
             f'add{self.wflag} {dest}, x0, {temp}'
         ]
 
+
 class BitwiseOperations(Arm64Instruction):
     """ Convert Bitwise operations (same pattern)
     """
     opcodes = ['eor', 'orr', 'and']
     opmap = {
-        'eor' : 'xor',
-        'orr' : 'or',
-        'and' : 'and',
+        'eor': 'xor',
+        'orr': 'or',
+        'and': 'and',
     }
+
     def emit_riscv(self):
         dest, s1, s2 = self.get_args()
         self.riscv_instructions += [
