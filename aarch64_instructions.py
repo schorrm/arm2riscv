@@ -1,19 +1,25 @@
 #!/usr/bin/python3
 
-COMPARE = 'compare' # name of register target for comparef
-SHIFT_TEMP   = 'shift_temp'
-OP2_OVERSIZE = 'shift_temp' # OP2 Imm / Shift should be mutually exclusive?
+from typing import List
+
+COMPARE = 'compare'  # name of register target for comparef
+SHIFT_TEMP = 'shift_temp'
+OP2_OVERSIZE = 'shift_temp'  # OP2 Imm / Shift should be mutually exclusive?
 
 # little helper functions
+
+
 def isreg(d):
     if type(d) == dict:
         return 'register' in d.keys()
     return False
 
+
 def isOversizeOffset(o):
     if type(o) == int:
         return o >= 2048 or o < -2048
     return False
+
 
 def wfreg(r):
     if 'half_width' in r.keys():
@@ -21,12 +27,28 @@ def wfreg(r):
             return 'w'
     return ''
 
+
 def safe_pullregs(operands):
     rs = []
     for o in operands:
         if 'register' in o.keys():
             rs.append(o['register'])
     return rs
+
+
+def pulltypes(operands):
+    o_types = []
+    for o in operands:
+        if 'register' in o.keys():
+            o_types.append('register')
+        elif 'immediate' in o.keys():
+            o_types.append('immediate')
+        elif 'label' in o.keys():
+            o_types.append('label')
+        else:
+            o_types.append(None)
+    return o_types
+
 
 fpfmtmap = {
     16: 'h',
@@ -36,16 +58,20 @@ fpfmtmap = {
 }
 
 # Return the appropriate RISC-V char suffix for the width
+
+
 def floatfmt(reg):
     return fpfmtmap[reg['width']]
+
 
 def get_fl_flag(reg):
     if type(reg) == dict:
         if 'width' in reg.keys():
             return floatfmt(reg)
 
+
 class Arm64Instruction:
-    imm_width  = 12
+    imm_width = 12
     num_reg_writes = 1
 
     # MAYBE: TODO: set lower bound to be 2 pow - 1 e.g. -2047 lower bound, to avoid edge case in subtract immediate? -- done for now
@@ -57,7 +83,7 @@ class Arm64Instruction:
             elif x not in range(- (2 ** (self.imm_width-1) + 1), 2 ** (self.imm_width-1)):
                 return True
         return False
-    
+
     def is_safe_imm(self, x) -> bool:
         if 'immediate' in x.keys():
             return not self.is_oversized_imm(x)
@@ -65,45 +91,59 @@ class Arm64Instruction:
 
     def __init__(self, opcode, operands):
         self.opcode = opcode
+        self.operands = operands
         self.required_temp_regs = []
         self.specific_regs = safe_pullregs(operands)
-        self.written_regs  = self.specific_regs[:self.num_reg_writes] # used for checking which virtualized registers to write
+        self.operand_types = pulltypes(operands)
+        # used for checking which virtualized registers to write
+        self.written_regs = self.specific_regs[:self.num_reg_writes]
         self.riscv_instructions = []
         self.immediate_value = None
         self.needs_synthesis = []
 
-        if not operands: # safeguard against nops, rets and other stuff like that
+        if not operands:  # safeguard against nops, rets and other stuff like that
             return
 
-        synth_ctr = 0
+        # WATCH THIS
         for operand in operands:
             if self.is_oversized_imm(operand):
                 self.needs_synthesis.append(operand['immediate'])
-                self.required_temp_regs.append(SHIFT_TEMP)
-                synth_ctr += 1
-
-        self.flex2 = None
-        if len(operands) >= 3:
-            if isreg(operands[2]):
-                self.flex2 = operands[2]['register']
-            elif 'label' in operands[2].keys():
-                self.flex2 = operands[2]['label'] # this should have a la
-            elif 'immediate' in operands[2].keys():
-                self.flex2 = operands[2]['immediate'] # insert safety here?
-
+                self.required_temp_regs.append(OP2_OVERSIZE)
 
         self.iflag = 'i' if any(self.is_safe_imm(o) for o in operands) else ''
         self.fp_wflag = get_fl_flag(operands[0])
         self.wflag = wfreg(operands[0])
 
+    def get_args(self) -> List:
+        """Get the arguments for the emit, with shift, immediate, and immediate temps interleaved
+
+        Returns:
+            List: List of arguments in format ready for output
+        """
+        rs = []
+        reg_ct = 0
+        for op, optype in zip(self.operands, self.operand_types):
+            if optype == 'register':
+                rs.append(self.specific_regs[reg_ct])
+                reg_ct += 1
+            elif optype == 'label':
+                rs.append(op['label'])
+            elif optype == 'immediate':
+                if self.is_oversized_imm(op):
+                    rs.append(self.required_temp_regs[0])
+                else:
+                    rs.append(op['immediate'])
+        return rs
+
     def synthesize(self):
         for immediate, reg in zip(self.needs_synthesis, self.required_temp_regs):
             self.riscv_instructions.append(
-                f'li {immediate}, {reg}'
+                f'li {reg}, {immediate}'
             )
-            
+
     def emit_riscv(self):
         self.synthesize()
+
 
 def pullregs(operands):
     return [r['register'] for r in operands]
@@ -128,14 +168,11 @@ class UnsignedMultiplyAddLong(Arm64Instruction):
             f'add {xd}, {xa}, {temp}'
         ]
 
-# converting sxtw: one arm instruction into one riscv (asm) instruction
-class SignExtendWord(Arm64Instruction):
-    opcodes = ['sxtw']
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-        xd, wn = operands
-        self.specific_regs = [xd['register'], wn['register']]
+class SignExtendWord(Arm64Instruction):
+    """Convert sign extension, checking new constructor
+    """
+    opcodes = ['sxtw']
 
     def emit_riscv(self):
         xd, wn = self.specific_regs
@@ -144,6 +181,8 @@ class SignExtendWord(Arm64Instruction):
         ]
 
 # converting bl: one arm instruction into one riscv instruction
+
+
 class BranchAndLink(Arm64Instruction):
     opcodes = ['bl']
 
@@ -154,48 +193,28 @@ class BranchAndLink(Arm64Instruction):
             f'call {label}'
         ]
 
-# converting add: one arm instruction into one or two riscv instructions
-# 2 riscv instructions includes 1 temp register when converting add 
-# with oversize immediate. otherwise one riscv instruction
+
 class Add(Arm64Instruction):
+    """Converts Add
+
+    Adjusts for immediate and width
+    """
     opcodes = ['add']
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
-        dest, s1, s2 = operands
-        self.specific_regs = [dest['register'], s1['register']]
-        if 'register' not in s2.keys():
-            self.op = 'addi'
-            if 'label' in s2.keys():
-                self.s2 = s2['label'] # TODO: undefined behavior!
-            elif 'immediate' in s2.keys():
-                self.s2 = s2['immediate']
-                if isOversizeOffset(self.s2):
-                    self.required_temp_regs = ['temp']
-                    self.op = 'add'
-        else:
-            self.op = 'add'
-            self.s2 = False
-            self.specific_regs.append(s2['register'])
-        if dest['half_width']:
-            self.op += 'w'
+        self.op = 'add' + self.iflag + self.wflag
 
     def emit_riscv(self):
-        dest, s1, *xsource = self.specific_regs
-        if xsource:
-            self.s2 = xsource[0]
-        if self.required_temp_regs:
-            temp = self.required_temp_regs[0]
-            self.riscv_instructions = [
-                f'li {temp}, {self.s2}',
-                f'add {dest}, {s1}, {temp}'
-            ]
-        else:
-            self.riscv_instructions = [
-                f'{self.op} {dest}, {s1}, {self.s2}'
-            ]
+        super().emit_riscv()
+        dest, s1, s2 = self.get_args()
+        self.riscv_instructions += [
+            f'{self.op} {dest}, {s1}, {s2}'
+        ]
 
 # converting adrp: one arm instruction into one riscv instruction
+
+
 class AddressPCRelative(Arm64Instruction):
     opcodes = ['adrp']
 
@@ -214,49 +233,30 @@ class AddressPCRelative(Arm64Instruction):
         ]
 
 
-# converting mov: one arm instruction into one riscv instruction
-# converting move between 2 regs implemented with add instruction with x0
-# converting move between immediate and 1 reg implemented with li instruction
-# converting move between label and 1 reg implemented with la instruction
 class Move(Arm64Instruction):
-    opcodes = ['mov']
+    """Rewritten Move -- using simplified constructor
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-        dest = operands[0]['register']
-        src = operands[1]
-        self.specific_regs = [dest]
-        self.stype = None
-        if 'register' in src.keys():
-            self.specific_regs.append(src['register'])
-            self.source = False
-        elif 'immediate' in src.keys():
-            self.source = src['immediate']
-            self.stype = 'immediate'
-        elif 'label' in src.keys():
-            self.source = src['label']
-            self.stype = 'label'
+    Operation is li, la, or mv depending on argument type
+    """
+    opcodes = ['mov']
+    imm_width = 64
 
     def emit_riscv(self):
-        if len(self.specific_regs) > 1:
-            self.source = self.specific_regs[1]
-
-        self.dest = self.specific_regs[0]
-        if self.stype == 'immediate':
-            self.riscv_instructions = [
-                f'li {self.dest}, {self.source}'
-            ]
-        elif self.stype == 'label':
-            self.riscv_instructions = [
-                f'la {self.dest}, {self.source}'
-            ]
+        if self.operand_types[1] == 'immediate':
+            op = 'li'
+        elif self.operand_types[1] == 'label':
+            op = 'la'
         else:
-            self.riscv_instructions = [
-                f'mv {self.dest}, {self.source}'
-            ]
+            op = 'mv'
+        dest, src = self.get_args()
+        self.riscv_instructions = [
+            f'{op} {dest}, {src}'
+        ]
 
 # converting stp: one arm instruction into two or three riscv instructions
 # three store instruction when sp changes, otherwise two
+
+
 class StorePair(Arm64Instruction):
     opcodes = ['stp']
 
@@ -334,10 +334,10 @@ class LoadPair(Arm64Instruction):
                 f'addi {sp}, {sp}, {self.final_offset}'
             )
 
-# converting ret: one arm instruction into one riscv instruction
-
 
 class Return(Arm64Instruction):
+    """Convert Return - trivial conversion
+    """
     opcodes = ['ret']
 
     def __init__(self, opcode, operands):
@@ -345,12 +345,13 @@ class Return(Arm64Instruction):
         self.riscv_instructions = ['ret']
 
 
-# combining multiply and divide / rem since should be the same
-# converting mul, udiv or sdiv: one arm instruction into one riscv instruction
-
-# TODO: This class is a lot like Anthony Weiner: There are disasters waiting
-# to happen with sexts. Sign extension / overflow could be very iffy.
 class MultiplyDivide (Arm64Instruction):
+    """Combining multiply and divide since should be the same
+
+    converting mul, udiv or sdiv: simple 1:1
+    TODO: This class is a lot like Anthony Weiner: There are disasters waiting
+    to happen with sexts. Sign extension / overflow could be very iffy.
+    """
     opcodes = ['mul', 'udiv', 'sdiv']
 
     map_op = {
@@ -360,29 +361,20 @@ class MultiplyDivide (Arm64Instruction):
     }
 
     # TODO: check type safety!
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-        regs = [x['register'] for x in operands[:3]]
-        wflag = 'w' if operands[0]['half_width'] else ''
-        xd, xa, xb = regs
-        self.specific_regs = [xd, xa, xb]
-        self.op = self.map_op[opcode] + wflag
-
     def emit_riscv(self):
+        op = self.map_op[self.opcode]
         xd, xa, xb = self.specific_regs
         self.riscv_instructions = [
-            f'{self.op} {xd}, {xa}, {xb}'
+            f'{op}{self.wflag} {xd}, {xa}, {xb}'
         ]
 
-# converting neg: one arm instruction into one riscv instruction
-# TODO: do we need a word level op for this? 
-class Negate(Arm64Instruction):
-    opcodes = ['neg']
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-        dest, source = operands
-        self.specific_regs = [dest['register'], source['register']]
+class Negate(Arm64Instruction):
+    """ Converts negate
+
+    TODO: Do we need a word level op?
+    """
+    opcodes = ['neg']
 
     def emit_riscv(self):
         dest, source = self.specific_regs
@@ -390,71 +382,45 @@ class Negate(Arm64Instruction):
             f'sub {dest}, x0, {source}'
         ]
 
-# converting sub or subs: one arm instruction into one, two or three riscv instructions
-# when converting sub: 2 riscv instruction when subtracting too
-# oversize immediate number using temp register for constant synthesis
-# when converting sub: 1 riscv instruction when the above not applying
-# when converting subs: doing like sub and adding an instruction that
-# moves the result to the compare register
+
 class Subtract(Arm64Instruction):
+    """Handle Subtract
+
+    Along with updating flags if it's `subs`
+    If possible, switches a sub with immediate to addi with flipped sign.
+    """
     opcodes = ['sub', 'subs']
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
-        dest, s1, s2 = operands
-        self.opcode = opcode
-        self.oversized = False
-        self.op = 'subw' if dest['half_width'] else 'sub'
-        self.specific_regs = [dest['register'], s1['register']]
-        if 'register' not in s2.keys():
-            self.immediate = True
-            if 'label' in s2.keys():
-                self.s2 = s2['label']
-                # TODO: FIX
-                # undefined behavior for now
-            elif 'immediate' in s2.keys():
-                self.s2 = s2['immediate']
-            self.s2 = -self.s2  # invert the sign! now an add
-            if isOversizeOffset(self.s2):
-                self.op = 'sub'
-                self.oversized = True
-                self.s2 = -self.s2
-                self.required_temp_regs = ['temp']
-            else:
-                self.op = 'addiw' if dest['half_width'] else 'addi'
-        else:
-            self.immediate = False
-            self.specific_regs.append(s2['register'])
 
+        self.op = 'sub'
+        if self.is_safe_imm(self.operands[2]):
+            self.op = 'addi'
+            self.immediate_value = -self.operands[2]['immediate']
+        self.op += self.wflag
         if self.opcode == 'subs':
             self.specific_regs.append(COMPARE)
 
     def emit_riscv(self):
-        dest, s1, *xsource = self.specific_regs
-        if not self.immediate:
-            self.s2 = xsource[0]
-        if self.oversized:
-            temp = self.required_temp_regs[0]
-            self.riscv_instructions = [
-                f'li {temp}, {self.s2}',
-                f'{self.op} {dest}, {s1}, {temp}'
-            ]
-        else:
-            self.riscv_instructions = [
-                f'{self.op} {dest}, {s1}, {self.s2}'
-            ]
+        super().emit_riscv()
+        dest, s1, s2 = self.get_args()
+        if self.immediate_value:
+            s2 = self.immediate_value
+
+        self.riscv_instructions += [
+            f'{self.op} {dest}, {s1}, {s2}'
+        ]
 
         if self.opcode == 'subs':
-            if self.immediate:
-                cond = xsource[0]
-            else:
-                cond = xsource[1]
+            cond = self.specific_regs[-1]
             self.riscv_instructions.append(
-                f'add {cond}, {dest}, x0'
+                f'mv {cond}, {dest} # update flags'
             )
+            
 
-# converting b: one arm instruction into one riscv instruction
 class Branch(Arm64Instruction):
+    """ Branch is jump, nothing else to it """
     opcodes = ['b']
     # add conditionals to here? or separately?
 
@@ -465,45 +431,23 @@ class Branch(Arm64Instruction):
             f'j {target}'
         ]
 
-# converting lsl, lsr or asr: one arm instruction into one riscv instruction
 class Shift(Arm64Instruction):
+    """ convert shifts to corresponding name in RISC-V
+    """
+    
     opcodes = ['lsl', 'lsr', 'asr']
     # May need to be fed into by implied shifts in OP2, tbd
 
-    def __init__(self, opcode, operands):
-        super().__init__(opcode, operands)
-
-        if opcode == 'lsl':
-            self.op = 'sll'
-        elif opcode == 'lsr':
-            self.op = 'srl'
-        elif opcode == 'asr':
-            self.op = 'sra'
-        dest, r1, r2 = operands
-        wflag = 'w' if dest['half_width'] else ''
-        dest = dest['register']
-        r1 = r1['register']
-        self.specific_regs = [dest, r1]
-        if 'register' in r2.keys():
-            r2 = r2['register']
-            self.specific_regs.append(r2)
-            self.immediate = False
-        else:
-            self.immediate_op = r2['immediate']
-            self.immediate = True
-
-        if self.immediate:
-            self.op += 'i'
-        self.op += wflag
+    opmap = {
+        'lsl' : 'sll',
+        'lsr' : 'srl',
+        'asr' : 'sra',
+    }
 
     def emit_riscv(self):
-        dest, s1, *xsource = self.specific_regs
-        if not self.immediate:
-            self.s2 = xsource[0]
-        else:
-            self.s2 = self.immediate_op
+        dest, s1, s2 = self.get_args()
         self.riscv_instructions = [
-            f'{self.op} {dest}, {s1}, {self.s2}'
+            f'{self.opmap[self.opcode]}{self.iflag}{self.wflag} {dest}, {s1}, {s2}'
         ]
 
 
@@ -521,6 +465,8 @@ LD rd,offset(rs1)	Load Double	rd ← u64[rs1 + offset]
 # converting ldr, ldrp, ldrsw or ldrsh: one arm instruction
 # into one, two, three or four riscv instructions
 # using temp for some of them
+
+
 class LoadRegister(Arm64Instruction):
     opcodes = ['ldr', 'ldrb', 'ldrsw', 'ldrsh']
 
@@ -633,6 +579,8 @@ SD rs2,offset(rs1)	Store Double	u64[rs1 + offset] ← rs2
 
 # converting str, strh, or strb: one arm instruction into two, three or four riscv instructions
 # using temp register for some of them, depends on the offset
+
+
 class StoreRegister(Arm64Instruction):
     opcodes = ['str', 'strh', 'strb']
 
@@ -758,6 +706,8 @@ class Compare(Arm64Instruction):
 
 # converting ble, blt, bge, bgt, beq or bne: one arm instruction into one riscv instruction
 # using the result of the last compare from the compare register
+
+
 class ConditionalBranch(Arm64Instruction):
     opcodes = ['ble', 'blt', 'bge', 'bgt', 'beq', 'bne']
 
@@ -776,6 +726,8 @@ class ConditionalBranch(Arm64Instruction):
 # Conditional operations
 # Note: pray that '999999' is not being used as a numeric label elsewhere.
 # We only go forward so multiple csels won't matter
+
+
 class ConditionalSelect(Arm64Instruction):
     opcodes = ['csel']
 
@@ -784,7 +736,8 @@ class ConditionalSelect(Arm64Instruction):
 
         self.cc = operands[3]['label'].lower()
         self.specific_regs = [r['register'] for r in operands[:3]] + [COMPARE]
-        self.required_temp_regs = ['temp'] # this allows cutting out a branch and simplifying
+        # this allows cutting out a branch and simplifying
+        self.required_temp_regs = ['temp']
         self.wf = wfreg(operands[0])
 
     def emit_riscv(self):
@@ -827,6 +780,8 @@ class ExclusiveOr(Arm64Instruction):
         ]
 
 # converting Or: one arm instruction into one riscv instruction
+
+
 class Or(Arm64Instruction):
     opcodes = ['orr']
 
@@ -854,6 +809,8 @@ class Or(Arm64Instruction):
         ]
 
 # converting nop: one arm instruction into one riscv instruction
+
+
 class Nop(Arm64Instruction):
     opcodes = ['nop']
 
@@ -862,11 +819,11 @@ class Nop(Arm64Instruction):
         self.riscv_instructions = ['nop']
 
 
-
 # Floating Point Instructions
 # Use this for all simple 1:1 conversions
 class FloatingPointSimplex(Arm64Instruction):
     opcodes = ['fadd', 'fsub', 'fdiv', 'fmul', 'fmax', 'fmin']
+
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         self.specific_regs = pullregs(operands)
@@ -879,8 +836,10 @@ class FloatingPointSimplex(Arm64Instruction):
             f'{self.op}.{self.width} {dst}, {s1}, {s2}'
         ]
 
+
 class FloatingPointSingleArg(Arm64Instruction):
     opcodes = ['fneg', 'fsqrt']
+
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         self.specific_regs = pullregs(operands)
@@ -892,7 +851,8 @@ class FloatingPointSingleArg(Arm64Instruction):
         self.riscv_instructions = [
             f'{self.op}.{self.width} {dst}, {s1}'
         ]
-    
+
+
 class FloatingPointFused(Arm64Instruction):
     opcodes = ['fmadd', 'fmsub', 'fnmadd', 'fnmsub']
 
@@ -907,4 +867,3 @@ class FloatingPointFused(Arm64Instruction):
         self.riscv_instructions = [
             f'{self.op}.{self.width} {dst}, {s1}, {s2}, {s3}'
         ]
-    
