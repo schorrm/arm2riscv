@@ -1,22 +1,8 @@
 #!/usr/bin/python3
 
-"""
-Classes:
-LDRB LoadRegisterByte
-UMADDL UnsignedMultiplyAddLong
-BL BranchAndLink
-ADRP AddressPCRelative
-ADD Add
-MOV Move
-STP StorePair
-LDP LoadPair
-RET Return
-STR StoreRegister
-LDR LoadRegister
-MUL Multiply
-"""
-
 COMPARE = 'compare' # name of register target for comparef
+SHIFT_TEMP   = 'shift_temp'
+OP2_OVERSIZE = 'shift_temp' # OP2 Imm / Shift should be mutually exclusive?
 
 # little helper functions
 def isreg(d):
@@ -30,42 +16,98 @@ def isOversizeOffset(o):
     return False
 
 def wfreg(r):
-    if r['half_width']:
-        return 'w'
+    if 'half_width' in r.keys():
+        if r['half_width']:
+            return 'w'
     return ''
 
-def pullregs(operands):
-    return [r['register'] for r in operands]
+def safe_pullregs(operands):
+    rs = []
+    for o in operands:
+        if 'register' in o.keys():
+            rs.append(o['register'])
+    return rs
 
-
-""" RISC-V Format Fields for FP
-00 S 32-bit single-precision
-01 D 64-bit double-precision
-10 H 16-bit half-precision
-11 Q 128-bit quad-precision
-"""
 fpfmtmap = {
-    16: 'H',
-    32: 'S',
-    64: 'D',
-    128: 'Q'
+    16: 'h',
+    32: 's',
+    64: 'd',
+    128: 'q'
 }
 
 # Return the appropriate RISC-V char suffix for the width
 def floatfmt(reg):
-    return fpfmtmap[reg['width']].lower()
+    return fpfmtmap[reg['width']]
 
+def get_fl_flag(reg):
+    if type(reg) == dict:
+        if 'width' in reg.keys():
+            return floatfmt(reg)
 
-# Master Arm64Instruction Class, all others inherit from here
 class Arm64Instruction:
+    imm_width  = 12
+    num_reg_writes = 1
+
+    # MAYBE: TODO: set lower bound to be 2 pow - 1 e.g. -2047 lower bound, to avoid edge case in subtract immediate? -- done for now
+    def is_oversized_imm(self, x) -> bool:
+        if 'immediate' in x.keys():
+            x = x['immediate']
+            if not self.imm_width:
+                return True
+            elif x not in range(- (2 ** (self.imm_width-1) + 1), 2 ** (self.imm_width-1)):
+                return True
+        return False
+    
+    def is_safe_imm(self, x) -> bool:
+        if 'immediate' in x.keys():
+            return not self.is_oversized_imm(x)
+        return False
+
     def __init__(self, opcode, operands):
         self.opcode = opcode
         self.required_temp_regs = []
-        self.specific_regs = []
+        self.specific_regs = safe_pullregs(operands)
+        self.written_regs  = self.specific_regs[:self.num_reg_writes] # used for checking which virtualized registers to write
         self.riscv_instructions = []
+        self.immediate_value = None
+        self.needs_synthesis = []
 
+        if not operands: # safeguard against nops, rets and other stuff like that
+            return
+
+        synth_ctr = 0
+        for operand in operands:
+            if self.is_oversized_imm(operand):
+                self.needs_synthesis.append(operand['immediate'])
+                self.required_temp_regs.append(SHIFT_TEMP)
+                synth_ctr += 1
+
+        self.flex2 = None
+        if len(operands) >= 3:
+            if isreg(operands[2]):
+                self.flex2 = operands[2]['register']
+            elif 'label' in operands[2].keys():
+                self.flex2 = operands[2]['label'] # this should have a la
+            elif 'immediate' in operands[2].keys():
+                self.flex2 = operands[2]['immediate'] # insert safety here?
+
+
+        self.iflag = 'i' if any(self.is_safe_imm(o) for o in operands) else ''
+        self.fp_wflag = get_fl_flag(operands[0])
+        self.wflag = wfreg(operands[0])
+
+    def synthesize(self):
+        for immediate, reg in zip(self.needs_synthesis, self.required_temp_regs):
+            self.riscv_instructions.append(
+                f'li {immediate}, {reg}'
+            )
+            
     def emit_riscv(self):
-        pass
+        self.synthesize()
+
+def pullregs(operands):
+    return [r['register'] for r in operands]
+
 
 # converting umaddl: one arm instruction into two riscv instructions using one temp register
 class UnsignedMultiplyAddLong(Arm64Instruction):
@@ -385,7 +427,7 @@ class Subtract(Arm64Instruction):
             self.specific_regs.append(s2['register'])
 
         if self.opcode == 'subs':
-            self.specific_regs.append('compare')
+            self.specific_regs.append(COMPARE)
 
     def emit_riscv(self):
         dest, s1, *xsource = self.specific_regs
