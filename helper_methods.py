@@ -6,7 +6,7 @@ import copy
 tempregs = ['s6', 's7', 's8']
 membase_ptr = 's5'
 
-def allocate_registers(registers):
+def allocate_registers(registers, n_writes):
     current = 0
     loads = []
     stores = []
@@ -18,9 +18,10 @@ def allocate_registers(registers):
             loads.append(
                 f'ld {tempregs[current]}, {offset}({membase_ptr})'
             )
-            stores.append(
-                f'sd {tempregs[current]}, {offset}({membase_ptr})'
-            )
+            if i < n_writes:
+                stores.append(
+                    f'sd {tempregs[current]}, {offset}({membase_ptr})'
+                )
             registers[i] = tempregs[current]
             current += 1
         else:

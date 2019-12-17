@@ -246,8 +246,6 @@ class Move(Arm64Instruction):
 
 # converting stp: one arm instruction into two or three riscv instructions
 # three store instruction when sp changes, otherwise two
-
-
 class StorePair(Arm64Instruction):
     opcodes = ['stp']
     num_reg_writes = 0
@@ -255,11 +253,10 @@ class StorePair(Arm64Instruction):
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
-        r1, r2, sp = operands[:3]
-
         # Becomes either sw or sd, depending on reg width
-        self.base_op = 'sw' if r1['half_width'] else 'sd'
+        self.base_op = 'sw' if self.wflag else 'sd'
 
+        sp = self.operands[2]
         self.offset = 0
         if 'offset' in sp.keys():
             self.offset = sp['offset']
@@ -271,8 +268,6 @@ class StorePair(Arm64Instruction):
             self.final_offset = sp['offset']
         else:  # Signed Offset
             self.final_offset = None
-
-        self.specific_regs = [r1['register'], r2['register'], sp['register']]
 
     def emit_riscv(self):
         r1, r2, sp = self.specific_regs
@@ -296,11 +291,10 @@ class LoadPair(Arm64Instruction):
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
-        r1, r2, sp = operands[:3]
-
         # Becomes either lw or ld, depending on reg width
-        self.base_op = 'lw' if r1['half_width'] else 'ld'
+        self.base_op = 'lw' if self.wflag else 'ld'
 
+        sp = self.operands[2]
         self.offset = 0
         if 'offset' in sp.keys():
             self.offset = sp['offset']
@@ -312,8 +306,6 @@ class LoadPair(Arm64Instruction):
             self.final_offset = sp['offset']
         else:  # Signed Offset
             self.final_offset = None
-
-        self.specific_regs = [r1['register'], r2['register'], sp['register']]
 
     def emit_riscv(self):
         r1, r2, sp = self.specific_regs

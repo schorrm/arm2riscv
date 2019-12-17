@@ -62,7 +62,7 @@ for line in sys.stdin:
         operands = [cleanup(operand) for operand in d['operation']['operands']]
         shifts = None
         for operand in operands:
-            # Find shifted registers and pull them out and 
+            # Find shifted registers and pull them out and
             # promote to shift_reg temp register
             shifts = get_shifts(operand)
             if shifts:
@@ -97,7 +97,7 @@ for i, line in enumerate(buffer):
     if Arm64Instruction in type(line).__mro__:
         line.required_temp_regs = [register_map[r]
                                    for r in line.required_temp_regs]
-        loads, stores = allocate_registers(line.specific_regs)
+        loads, stores = allocate_registers(line.specific_regs, line.num_reg_writes)
         memguards_loads.append(loads)
         memguards_stores.append(stores)
     else:
@@ -121,6 +121,6 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
             st = st.replace(' ', '\t', 1)
             print(f'\t{st} # store of mmapped register')
     else:
-        if line.strip().startswith('.xword'): # = dword, but not recognized on RV
+        if line.strip().startswith('.xword'):  # = dword, but not recognized on RV
             line = line.replace('.xword', '.dword', 1)
         print(line.rstrip())
