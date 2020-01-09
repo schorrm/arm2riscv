@@ -496,8 +496,7 @@ class ConditionalBranch(Arm64Instruction):
 # Conditional operations
 # Note: pray that '999999' is not being used as a numeric label elsewhere.
 # We only go forward so multiple csels won't matter
-
-
+# TODO: add checking for the numeric local in cleanup
 class ConditionalSelect(Arm64Instruction):
     """Conditional Select uses a local branch to guard the condition
 
@@ -517,7 +516,7 @@ class ConditionalSelect(Arm64Instruction):
         temp = self.required_temp_regs[0]
         self.riscv_instructions = [
             f'add{self.wflag} {temp}, {s1}, x0',
-            f'b{self.cc} {cond}, x0, 999999f',
+            f'b{self.cc} {cond}, x0, 999999f', #f -- only forward.
             f'add{self.wflag} {temp}, {s2}, x0',
             f'999999:',
             f'add{self.wflag} {dest}, x0, {temp}'

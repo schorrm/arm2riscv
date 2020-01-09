@@ -6,21 +6,24 @@ import copy
 tempregs = ['s6', 's7', 's8']
 membase_ptr = 's5'
 
+# TODO: add example here
 def allocate_registers(registers, n_writes):
+    ''' issue loads and stores for operations on memory mapped registers
+    '''
     current = 0
     loads = []
     stores = []
     for i in range(len(registers)):
         r = registers[i]
         mapped = register_map[r]
-        if type(mapped) == int:
+        if type(mapped) == int: # mapper gives the offset instead of a string name for mmapped registers
             offset = mapped
             loads.append(
-                f'ld {tempregs[current]}, {offset}({membase_ptr})'
+                f'ld {tempregs[current]}, {offset}({membase_ptr})' # RISC-V load of mmapped
             )
             if i < n_writes:
                 stores.append(
-                    f'sd {tempregs[current]}, {offset}({membase_ptr})'
+                    f'sd {tempregs[current]}, {offset}({membase_ptr})' # RISC-V store mmapped
                 )
             registers[i] = tempregs[current]
             current += 1
@@ -28,6 +31,9 @@ def allocate_registers(registers, n_writes):
             registers[i] = mapped
     return loads, stores  
 
+
+# TODO: Move to transformer
+# Note before / after
 def cleanup(operand):
     operand['operand']['writeback'] = operand['writeback']
     operand = operand['operand']

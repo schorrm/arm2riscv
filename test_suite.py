@@ -13,7 +13,7 @@ if not os.path.isdir(BIN_DIR):
 success = 0
 total  = len(os.listdir(CODE_DIR))
 
-# diffs = []
+# Note O0s
 
 for fn in tqdm(os.listdir(CODE_DIR)):
     fp = f'{CODE_DIR}/{fn}'

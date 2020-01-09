@@ -25,6 +25,7 @@ arg_parser.add_argument('-l', '--log-special', help="""log various changes (cons
                         action="store_true")
 args = arg_parser.parse_args()
 
+# Build map of opcodes to their handling instruction subclasses
 instructions = {}
 for ins in Arm64Instruction.__subclasses__():
     for opcode in ins.opcodes:

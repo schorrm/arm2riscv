@@ -17,7 +17,7 @@ operand: (reglist
 
 dotlabel: DOTLABEL 
 DOTLABEL: "." CNAME
-reglist: "{" (register | register_range)+ "}"
+reglist: "{" (register | register_range)+ "}"  // ARM v7
 register_range: register "-" register
 indirect: "[" register offset? "]"
 offset: immediate | proc_load | register | shifted_register

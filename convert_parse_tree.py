@@ -28,7 +28,7 @@ class TreeToDict(Transformer):
     def writeback(self, w):
         return True
     def operand(self, op):
-        wb = len(op) > 1
+        wb = len(op) > 1 # Only way to have more than one child item here is writeback
         op = op[0]
         return {'operand': op, 'writeback': wb}
     def operation(self, c):
