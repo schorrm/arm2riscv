@@ -13,13 +13,16 @@ class Arm64Instruction:
     imm_width = 12
     num_reg_writes = 1
 
-    # MAYBE: TODO: set lower bound to be 2 pow - 1 e.g. -2047 lower bound, to avoid edge case in subtract immediate? -- done for now
     def is_oversized_imm(self, x) -> bool:
         if 'immediate' in x.keys():
             x = x['immediate']
             if not self.imm_width:
                 return True
             elif x not in range(- (2 ** (self.imm_width-1) + 1), 2 ** (self.imm_width-1)):
+                ''' Note: 2 ** (self.imm_width-1) + 1 is not tight, it is actually up to - 2** imm_width-1.
+                However: this allows us to invert immediates where necessary for signed ops without incurring
+                problems in edge cases.
+                '''
                 return True
         return False
 
@@ -493,6 +496,19 @@ class ConditionalBranch(Arm64Instruction):
             f'{self.opcode} {cmpreg}, x0, {self.target}'
         ]
 
+
+class ConditionalBranchNonZero(Arm64Instruction):
+    ''' CBNZ -- branch if R!=0
+    '''
+    opcodes = ['cbnz']
+
+    def emit_riscv(self):
+        r = self.specific_regs[0]
+        target = self.operands[1]['label']
+        self.riscv_instructions = [
+            f'bne {r}, x0, {target}'
+        ]
+
 # Conditional operations
 # Note: pray that '999999' is not being used as a numeric label elsewhere.
 # We only go forward so multiple csels won't matter
@@ -516,10 +532,31 @@ class ConditionalSelect(Arm64Instruction):
         temp = self.required_temp_regs[0]
         self.riscv_instructions = [
             f'add{self.wflag} {temp}, {s1}, x0',
-            f'b{self.cc} {cond}, x0, 999999f', #f -- only forward.
+            f'b{self.cc} {cond}, x0, 999999f',  # f -- only forward.
             f'add{self.wflag} {temp}, {s2}, x0',
             f'999999:',
             f'add{self.wflag} {dest}, x0, {temp}'
+        ]
+
+class ConditionalSet(Arm64Instruction):
+    """Conditional Set uses a local branch to guard the condition
+    """
+    opcodes = ['cset']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+
+        self.cc = operands[1]['label'].lower()
+        self.specific_regs.append(COMPARE)
+
+    def emit_riscv(self):
+        dest, cmp = self.specific_regs
+        self.riscv_instructions = [
+            f'li {dest}, 1',
+            f'b{self.cc} {cmp}, x0, 999999f',  # f -- only forward.
+            f'mv {dest}, x0',
+            f'999999:',
+            f'nop'
         ]
 
 
@@ -596,7 +633,7 @@ class FloatingPointFused(Arm64Instruction):
     opmap = {
         'fmadd': 'fmadd',
         'fnmadd': 'fnmadd',
-        'fmsub': 'fnmsub',  # not sure why but fmsub and fnmsub seem to swap
+        'fmsub': 'fnmsub',  # not sure why but fmsub and fnmsub are swapped in the syntax
         'fnmsub': 'fmsub',
     }
 
@@ -604,4 +641,30 @@ class FloatingPointFused(Arm64Instruction):
         dst, s1, s2, s3 = self.specific_regs
         self.riscv_instructions = [
             f'{self.opmap[self.opcode]}.{self.fp_wflag} {dst}, {s1}, {s2}, {s3}'
+        ]
+
+
+class AtomicLoad(Arm64Instruction):
+    ''' Atomic load ops - direct 1:1
+    '''
+    opcodes = ['ldaxr']
+
+    def emit_riscv(self):
+        dst, src = self.specific_regs
+        size = 'w' if self.wflag else 'd'
+        self.riscv_instructions = [
+            f'lr.{size} {dst}, {self.offset}({src})'
+        ]
+
+
+class AtomicStore(Arm64Instruction):
+    ''' Atomic store ops - direct 1:1
+    '''
+    opcodes = ['stlxr']
+
+    def emit_riscv(self):
+        dst, desired, addr = self.specific_regs
+        size = 'w' if self.wflag else 'd'
+        self.riscv_instructions = [
+            f'sc.{size} {dst}, {desired}, {self.offset}({addr})'
         ]
