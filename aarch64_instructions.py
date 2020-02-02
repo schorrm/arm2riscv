@@ -214,6 +214,26 @@ class Move(Arm64Instruction):
         ]
 
 
+class MoveNot(Arm64Instruction):
+    ''' MVN - move not
+    '''
+    opcodes = ['mvn']
+    imm_width = 64
+
+    def emit_riscv(self):
+        if self.operand_types[1] == 'immediate':
+            op = 'li'
+        elif self.operand_types[1] == 'label':
+            op = 'la'
+        else:
+            op = 'mv'
+        dest, src = self.get_args()
+        self.riscv_instructions = [
+            f'{op} {dest}, {src}',
+            f'not {dest}, {dest}'
+        ]
+
+
 class LoadStorePair(Arm64Instruction):
     """Load and Store pair have almost identical behavior.
 
@@ -705,14 +725,20 @@ class AtomicOperations(Arm64Instruction):
     ''' Grouping together Arm64 Atomics, e.g. LDADD, CAS, etc.
     Translation is one to one op, with acquire-release semantics as well.
     '''
-    opcodes = ['swp', 'ldadd', 'ldeor', 'ldset'] + ['swpa', 'ldadda', 'ldeora', 'ldseta'] + \
-        ['swpl', 'ldaddl', 'ldeorl', 'ldsetl'] + ['swpal', 'ldaddal', 'ldeoral', 'ldsetal']
+    opcodes = ['swp', 'ldadd', 'ldeor', 'ldset', 'ldsmin', 'ldsmax', 'ldumin', 'ldumax'] +\
+        ['swpa', 'ldadda', 'ldeora', 'ldseta', 'ldsmina', 'ldsmaxa', 'ldumina', 'ldumaxa'] +\
+        ['swpl', 'ldaddl', 'ldeorl', 'ldsetl', 'ldsminl', 'ldsmaxl', 'lduminl', 'ldumaxl'] +\
+        ['swpal', 'ldaddal', 'ldeoral', 'ldsetal', 'ldsminal', 'ldsmaxal', 'lduminal', 'ldumaxal']
 
     opmap = {
         'swp': 'amoswap',
         'ldadd': 'amoadd',
         'ldeor': 'amoxor',
         'ldset': 'amoor',
+        'ldsmax': 'amomax',
+        'ldsmin': 'amomin',
+        'ldumax': 'amomaxu',
+        'ldumin': 'amominu',
     }
 
     def __init__(self, opcode, operands):
@@ -735,4 +761,30 @@ class AtomicOperations(Arm64Instruction):
         dst, desired, addr = self.specific_regs
         self.riscv_instructions = [
             f'{self.tr_opcode}.{size}{self.suffix} x0, {dst}, ({addr})'
+        ]
+
+
+class AtomicLoadAndClear(Arm64Instruction):
+    opcodes = ['ldclr', 'ldclra', 'ldclrl', 'ldclral']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        self.required_temp_regs = ['temp']  # we will invert before the atomic
+        # key thing here: translate the acquire/release semantics
+        if opcode.endswith('al'):  # acq + release
+            self.suffix = '.aqrl'
+        elif opcode.endswith('a'):
+            self.suffix = '.aq'
+        elif opcode.endswith('l'):
+            self.suffix = '.rl'
+        else:
+            self.suffix = ''
+
+    def emit_riscv(self):
+        size = 'w' if self.wflag else 'd'
+        dst, desired, addr = self.specific_regs
+        tmp = self.required_temp_regs[0]
+        self.riscv_instructions = [
+            f'not {tmp}, {dst}',
+            f'amoand.{size}{self.suffix} x0, {tmp}, ({addr})'
         ]
