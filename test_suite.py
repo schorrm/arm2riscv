@@ -17,7 +17,7 @@ success = 0
 total = len(code_files)
 
 for fn in tqdm(code_files):
-    bin_base = fn.split('/')[1].split('.')[0]
+    bin_base = fn.split('/')[-1].split('.')[0]
     bin_path = f'{BIN_DIR}/{bin_base}'
 
     c_r = subprocess.check_call(

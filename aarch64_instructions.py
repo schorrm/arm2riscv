@@ -701,23 +701,25 @@ class StoreReleaseFence(Arm64Instruction):
         ]
 
 
-
 class AtomicOperations(Arm64Instruction):
     ''' Grouping together Arm64 Atomics, e.g. LDADD, CAS, etc.
     Translation is one to one op, with acquire-release semantics as well.
     '''
-    opcodes = ['swp', 'swpa', 'swpl', 'swpal', 'ldadd', 'ldadda', 'ldaddal', 'ldaddl']
+    opcodes = ['swp', 'ldadd', 'ldeor', 'ldset'] + ['swpa', 'ldadda', 'ldeora', 'ldseta'] + \
+        ['swpl', 'ldaddl', 'ldeorl', 'ldsetl'] + ['swpal', 'ldaddal', 'ldeoral', 'ldsetal']
 
     opmap = {
-        'swp' : 'amoswap',
+        'swp': 'amoswap',
         'ldadd': 'amoadd',
+        'ldeor': 'amoxor',
+        'ldset': 'amoor',
     }
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
 
         # key thing here: translate the acquire/release semantics
-        if opcode.endswith('al'): # acq + release
+        if opcode.endswith('al'):  # acq + release
             self.suffix = '.aqrl'
         elif opcode.endswith('a'):
             self.suffix = '.aq'
@@ -732,5 +734,5 @@ class AtomicOperations(Arm64Instruction):
         size = 'w' if self.wflag else 'd'
         dst, desired, addr = self.specific_regs
         self.riscv_instructions = [
-            f'{self.tr_opcode}.{size}{self.suffix} {dst}, {desired}, ({addr})'
+            f'{self.tr_opcode}.{size}{self.suffix} x0, {dst}, ({addr})'
         ]

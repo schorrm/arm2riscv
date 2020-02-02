@@ -18,10 +18,7 @@ int thread_reader_lock = 0;
 struct timespec ts = {0, 1000L};
 
 //  load / store lock
-// We can then do atomics inside or something?
 void acquire_lock(int thread_index) {
-	// int current = 1;
-	// acquire:
 	while (1) {
 		int allowed_thread = __atomic_load_n(&current_thread_index, __ATOMIC_ACQUIRE);
 		if (allowed_thread == thread_index) {
