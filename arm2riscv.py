@@ -19,10 +19,12 @@ import argparse
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("-annot", "--annot-source", help="show original lines as comments",
                         action="store_true")
-arg_parser.add_argument('-l', '--log-special', help="""log various changes (const synthesis,
-                        register usage for emulating features, etc.)
-                        (not yet available)""",
+arg_parser.add_argument("-p", "--permissive", help="allow untranslated operations",
                         action="store_true")
+# arg_parser.add_argument('-l', '--log-special', help="""log various changes (const synthesis,
+#                         register usage for emulating features, etc.)
+#                         (not yet available)""",
+#                         action="store_true")
 args = arg_parser.parse_args()
 
 # Build map of opcodes to their handling instruction subclasses
@@ -56,9 +58,11 @@ for line in sys.stdin:
             buffer.append(f'\t{COMCHAR} {line.strip()}')
         opcode = d['operation']['opcode']
         if opcode not in instructions.keys():
-            raise InstructionNotRecognized(opcode)  # for now ends program
-            buffer.append(line + 'XXXXX')
-            continue
+            if not args.permissive:
+                raise InstructionNotRecognized(opcode) # end program if in restrictive mode
+            else:
+                buffer.append(line.rstrip() + '\t!!!!!') # print the line with a warning sequence
+                continue
 
         operands = [cleanup(operand) for operand in d['operation']['operands']]
         shifts = None

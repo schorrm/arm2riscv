@@ -513,6 +513,8 @@ class ConditionalBranchNonZero(Arm64Instruction):
 # Note: pray that '999999' is not being used as a numeric label elsewhere.
 # We only go forward so multiple csels won't matter
 # TODO: add checking for the numeric local in cleanup
+
+
 class ConditionalSelect(Arm64Instruction):
     """Conditional Select uses a local branch to guard the condition
 
@@ -538,6 +540,7 @@ class ConditionalSelect(Arm64Instruction):
             f'add{self.wflag} {dest}, x0, {temp}'
         ]
 
+
 class ConditionalSet(Arm64Instruction):
     """Conditional Set uses a local branch to guard the condition
     """
@@ -556,7 +559,7 @@ class ConditionalSet(Arm64Instruction):
             f'b{self.cc} {cmp}, x0, 999999f',  # f -- only forward.
             f'mv {dest}, x0',
             f'999999:',
-            f'nop'
+            f'nop'  # nothing further needed, we just need to conditionally skip setting to 0
         ]
 
 
@@ -657,7 +660,21 @@ class AtomicLoad(Arm64Instruction):
         ]
 
 
-class AtomicStore(Arm64Instruction):
+class LoadAcquireFence(Arm64Instruction):
+    ''' Atomic load ops - direct 1:1
+    '''
+    opcodes = ['ldar']
+
+    def emit_riscv(self):
+        dst, src = self.specific_regs
+        size = 'w' if self.wflag else 'd'
+        self.riscv_instructions = [
+            f'l{size} {dst}, {self.offset}({src})',
+            f'fence iorw,iorw # making implicit fence semantics explicit',
+        ]
+
+
+class AtomicStoreExclusive(Arm64Instruction):
     ''' Atomic store ops - direct 1:1
     '''
     opcodes = ['stlxr']
@@ -667,4 +684,53 @@ class AtomicStore(Arm64Instruction):
         size = 'w' if self.wflag else 'd'
         self.riscv_instructions = [
             f'sc.{size} {dst}, {desired}, {self.offset}({addr})'
+        ]
+
+
+class StoreReleaseFence(Arm64Instruction):
+    ''' Atomic store ops - direct 1:1
+    '''
+    opcodes = ['stlr']
+
+    def emit_riscv(self):
+        desired, addr = self.specific_regs
+        size = 'w' if self.wflag else 'd'
+        self.riscv_instructions = [
+            f'fence iorw,iorw  # making implicit fence semantics explicit',
+            f's{size} {desired}, {self.offset}({addr})'
+        ]
+
+
+
+class AtomicOperations(Arm64Instruction):
+    ''' Grouping together Arm64 Atomics, e.g. LDADD, CAS, etc.
+    Translation is one to one op, with acquire-release semantics as well.
+    '''
+    opcodes = ['swp', 'swpa', 'swpl', 'swpal', 'ldadd', 'ldadda', 'ldaddal', 'ldaddl']
+
+    opmap = {
+        'swp' : 'amoswap',
+        'ldadd': 'amoadd',
+    }
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+
+        # key thing here: translate the acquire/release semantics
+        if opcode.endswith('al'): # acq + release
+            self.suffix = '.aqrl'
+        elif opcode.endswith('a'):
+            self.suffix = '.aq'
+        elif opcode.endswith('l'):
+            self.suffix = '.rl'
+        else:
+            self.suffix = ''
+
+        self.tr_opcode = self.opmap[opcode.rstrip('al')]
+
+    def emit_riscv(self):
+        size = 'w' if self.wflag else 'd'
+        dst, desired, addr = self.specific_regs
+        self.riscv_instructions = [
+            f'{self.tr_opcode}.{size}{self.suffix} {dst}, {desired}, ({addr})'
         ]
