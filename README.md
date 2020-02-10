@@ -14,7 +14,26 @@ Or use:
 
 `python3 test_suite.py` runs the testing.
 
-## Dependencies
+## Setup:
 
-- Lark
-- tqdm (tests)
+*Requires: Python 3.6 or newer*
+
+### Python Dependencies
+
+- lark-parser (`pip install lark-parser`)
+- tqdm (tests) (`pip install tqdm`)
+
+### Compilers
+
+The safest option is to stick to the tested versions on Ubuntu, since both were tested on version 7.4.0.
+Both compiler toolchains are needed to run the test suite. Run:
+
+- `sudo apt-get install gcc-aarch64-linux-gnu=4:7.4.0-1ubuntu2.3`
+- `sudo apt-get install gcc-riscv64-linux-gnu=4:7.4.0-1ubuntu1.3`
+
+### Qemu
+
+Since the correct qemu-static-user binaries are hard to find, they're included.
+Copy both of them (`qemu-aarch64-static`, `qemu-riscv64-static`) from `testing/qemu_binaries` to `/usr/local/bin` so they're visible to the testing.
+
+Tests should now be runnable -- `python3 test_suite.py` in the main directory should be able to run it.
