@@ -760,7 +760,7 @@ class AtomicOperations(Arm64Instruction):
         size = 'w' if self.wflag else 'd'
         dst, desired, addr = self.specific_regs
         self.riscv_instructions = [
-            f'{self.tr_opcode}.{size}{self.suffix} x0, {dst}, ({addr})'
+            f'{self.tr_opcode}.{size}{self.suffix} {desired}, {dst}, ({addr})'
         ]
 
 
@@ -786,5 +786,5 @@ class AtomicLoadAndClear(Arm64Instruction):
         tmp = self.required_temp_regs[0]
         self.riscv_instructions = [
             f'not {tmp}, {dst}',
-            f'amoand.{size}{self.suffix} x0, {tmp}, ({addr})'
+            f'amoand.{size}{self.suffix} {desired}, {tmp}, ({addr})'
         ]
