@@ -4,7 +4,7 @@
 
 from lark import Lark, Transformer
 from convert_parse_tree import TreeToDict
-from register_map import register_map, mode_map
+from register_map import register_map, mode_map, base_register_map
 import sys
 from utils import *
 from helper_methods import *
@@ -20,6 +20,8 @@ arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("-annot", "--annot-source", help="show original lines as comments",
                         action="store_true")
 arg_parser.add_argument("-p", "--permissive", help="allow untranslated operations",
+                        action="store_true")
+arg_parser.add_argument("-xnames", "--xnames", help="Use xnames instead of ABI names",
                         action="store_true")
 # arg_parser.add_argument('-l', '--log-special', help="""log various changes (const synthesis,
 #                         register usage for emulating features, etc.)
@@ -87,7 +89,8 @@ for line in sys.stdin:
         if 'label' in d.keys():
             if d['label'] == 'main:':
                 # inject pointer to register bank on memory
-                buffer.append('\tla\ts5, REG_BANK')
+                mbptr = 's5' if not args.xnames else 'x21'
+                buffer.append(f'\tla\t{mbptr}, REG_BANK')
 
 # Remove arch directive
 if buffer[0].strip().startswith('.arch'):
@@ -102,7 +105,7 @@ for i, line in enumerate(buffer):
     if Arm64Instruction in type(line).__mro__:
         line.required_temp_regs = [register_map[r]
                                    for r in line.required_temp_regs]
-        loads, stores = allocate_registers(line.specific_regs, line.num_reg_writes)
+        loads, stores = allocate_registers(line.specific_regs, line.num_reg_writes, args.xnames)
         memguards_loads.append(loads)
         memguards_stores.append(stores)
     else:

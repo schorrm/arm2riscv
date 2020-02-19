@@ -1,31 +1,38 @@
 #!/usr/bin/python3
 
-from register_map import register_map, mode_map
+from register_map import register_map, mode_map, base_register_map
 import copy
 
 tempregs = ['s6', 's7', 's8']
 membase_ptr = 's5'
 
+base_tempregs = ['x22', 'x23', 'x24']
+base_membase_ptr = 'x21'
+
 # TODO: add example here
-def allocate_registers(registers, n_writes):
+def allocate_registers(registers, n_writes, use_base=False):
     ''' issue loads and stores for operations on memory mapped registers
     '''
+
+    _rmap = base_register_map if use_base else register_map
+    _tregs = base_tempregs if use_base else tempregs
+    _membase_ptr = base_membase_ptr if use_base else membase_ptr
     current = 0
     loads = []
     stores = []
     for i in range(len(registers)):
         r = registers[i]
-        mapped = register_map[r]
+        mapped = _rmap[r]
         if type(mapped) == int: # mapper gives the offset instead of a string name for mmapped registers
             offset = mapped
             loads.append(
-                f'ld {tempregs[current]}, {offset}({membase_ptr})' # RISC-V load of mmapped
+                f'ld {_tregs[current]}, {offset}({_membase_ptr})' # RISC-V load of mmapped
             )
             if i < n_writes:
                 stores.append(
-                    f'sd {tempregs[current]}, {offset}({membase_ptr})' # RISC-V store mmapped
+                    f'sd {_tregs[current]}, {offset}({_membase_ptr})' # RISC-V store mmapped
                 )
-            registers[i] = tempregs[current]
+            registers[i] = _tregs[current]
             current += 1
         else:
             registers[i] = mapped
