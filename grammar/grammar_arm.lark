@@ -24,7 +24,7 @@ offset: immediate | proc_load | register | shifted_register
 immediate: imm_value  | "#" imm_value
 address: "=" imm_value
 ?imm_value:  hex_val | dec_val
-hex_val.2: "0x" HEXDIGIT+
+hex_val.2: "0x" HEXNUM
 ?dec_val: NUMBER | SIGNED_NUMBER
 label_target: CNAME | DOTLABEL
 shifted_register: register shift_type shift_by?
@@ -34,6 +34,8 @@ proc_load: ":" mode ":" label_target | "#:" mode ":" label_target
 target: dotlabel | label_target
 mode: CNAME
 // MODE: "lo12" | "pg_hi21"
+
+HEXNUM: HEXDIGIT+
 
 %import common.CNAME
 %import common.SIGNED_NUMBER
