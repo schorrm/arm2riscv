@@ -78,7 +78,7 @@ class Arm64Instruction:
 
         self.iflag = 'i' if any(self.is_safe_imm(o) for o in operands) else ''
         self.fp_wflag = get_fl_flag(operands[0])
-        self.wflag = wfreg(operands[0])
+        self.wflag = is_half_width(operands[0])
 
     def get_args(self) -> List:
         """Get the arguments for the emit, with shift, immediate, and immediate temps interleaved
@@ -232,6 +232,52 @@ class MoveNot(Arm64Instruction):
             f'{op} {dest}, {src}',
             f'not {dest}, {dest}'
         ]
+
+class MoveWideWithKeep(Arm64Instruction):
+    ''' MovK
+    Arm64 docs: 
+    "Move wide with keep moves an optionally-shifted 16-bit immediate value into a register, keeping other bits unchanged."
+    (https://developer.arm.com/docs/ddi0596/e/base-instructions-alphabetic-order/movk-move-wide-with-keep)
+    There's no such primitive instruction in RISC-V, so we're gonna put it together here.
+    Broadly, we'll:
+    (1) Clear the bits we're going to load into in the destination (ANDing a mask)
+    (2) Move the bits to the parallel area
+    (3) or them together
+    Yay Turing Machines!
+    '''
+    opcodes = ['movk']
+    imm_width = 64 # we will handle our own immediates here
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        self.required_temp_regs = ['temp', 'shift_temp']
+        self.shift = False
+        if len(self.operands) > 2: # Not just a movk, but shifted
+            self.shift = True
+            # Operands are e.g. movk    x0, 0x41df, lsl 48
+            # We never need to pull the shift, since it can only be LSL 
+            self.shamt = self.operands[3]['immediate']
+    
+    def emit_riscv(self):
+        temp, shift_temp = self.required_temp_regs
+        dest = self.specific_regs[0]
+        imm = self.operands[1]['immediate']
+        self.riscv_instructions = [
+            f'not {temp}, x0 # set reg to all ones' 
+            f"srli {temp}, {temp}, 48 # this clears the upper 48 bits in the mask. We'll invert it to get the final mask",
+            f"li {shift_temp}, {imm} # load our immediate value"
+        ]
+        if self.shift:
+            self.riscv_instructions += [
+                f'slli {shift_temp}, {shift_temp}, {self.shamt} # move the immediate to the parallel place',
+                f'slli {temp}, {temp}, {self.shamt} # move the mask to the parallel place'
+            ]
+        self.riscv_instructions += [
+            f'not {temp}, {temp} # flip the mask to AND against'
+            f'and {dest}, {dest}, {temp} # clear the target bits in mask'
+            f'or {dest}, {dest}, {shift_temp} # or in the bits from the immediate to load'
+        ]
+
 
 
 class LoadStorePair(Arm64Instruction):
@@ -502,7 +548,11 @@ class ConditionalBranch(Arm64Instruction):
     """Conditional branches are about the same, just check the last comparison to zero
 
     """
-    opcodes = ['ble', 'blt', 'bge', 'bgt', 'beq', 'bne']
+    opcodes = ['ble', 'blt', 'bge', 'bgt', 'beq', 'bne', 'bpl', 'bhi']
+
+    opmap = dict(zip(opcodes, opcodes))
+    opmap['bpl'] =  'bge'
+    opmap['bhi'] =  'bgt'
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
@@ -510,10 +560,12 @@ class ConditionalBranch(Arm64Instruction):
         self.target = operands[0]['label']
         self.specific_regs = [COMPARE]
 
+        self.op = self.opmap[self.opcode]
+
     def emit_riscv(self):
         cmpreg = self.specific_regs[0]
         self.riscv_instructions = [
-            f'{self.opcode} {cmpreg}, x0, {self.target}'
+            f'{self.op} {cmpreg}, x0, {self.target}'
         ]
 
 
@@ -626,6 +678,42 @@ class FloatingPointMove(Arm64Instruction):
         self.riscv_instructions += [
             f'{self.op} {dest}, {src}'
         ]
+
+class FloatingPointConvert(Arm64Instruction):
+    ''' Things like UCVTF, SCVTF -- converting from fixed point or integer
+    '''
+    opcodes = ['ucvtf', 'scvtf']
+
+    def emit_riscv(self):
+        unsigned = 'u' if self.opcode == 'ucvtf' else ''
+        float_dest, integer_src = self.specific_regs
+        wl = 'w' if is_half_width(self.operands[1]) else 'l'
+        self.riscv_instructions = [
+            f'fcvt.s.{wl}{unsigned} {float_dest}, {integer_src}'
+        ]
+
+class FloatingPointCompare(Arm64Instruction):
+    ''' Floating point compare
+    Requires a couple tricks to synthesize the compare result as an int.
+    '''    
+    opcodes = ['fcmpe', 'fcmp']
+
+    def __init__(self, opcode, operands):
+        super().__init__(opcode, operands)
+        self.specific_regs.append(COMPARE)
+        self.required_temp_regs = ['temp'] # we need the temp to get the two results in
+
+    def emit_riscv(self):
+        arg1, arg2, compare = self.specific_regs
+        temp = self.required_temp_regs[0]
+
+        self.riscv_instructions = [
+            f'flt.d {compare}, {arg1}, {arg2} # this is less than, RHS is bigger',
+            f'slli {compare}, {compare}, 63 # move it to the sign bit location',
+            f'flt.d {temp}, {arg2}, {arg1} # if LHS is bigger',
+            f'or {compare}, {compare}, {temp} # or the results together',
+        ]
+
 
 
 class FloatingPointSimplex(Arm64Instruction):

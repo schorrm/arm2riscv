@@ -6,12 +6,11 @@ def isreg(d):
     return False
 
 
-def wfreg(r):
+def is_half_width(r):
     if 'half_width' in r.keys():
         if r['half_width']:
             return 'w'
     return ''
-
 
 def safe_pullregs(operands):
     rs = []

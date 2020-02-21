@@ -1,6 +1,8 @@
-// Test file for a full range of **integer** math instructions
+// Test file for a full range of **float** math instructions
 #include <stdio.h>
 
+
+// Type punning to get past the variadic call to printf
 typedef union {
     unsigned long int ui;
     double d;
