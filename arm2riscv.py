@@ -11,6 +11,7 @@ from helper_methods import *
 
 import copy
 from tqdm import tqdm
+import csv
 
 from aarch64_instructions import Arm64Instruction
 
@@ -23,11 +24,16 @@ arg_parser.add_argument("-p", "--permissive", help="allow untranslated operation
                         action="store_true")
 arg_parser.add_argument("-xnames", "--xnames", help="Use xnames instead of ABI names",
                         action="store_true")
+arg_parser.add_argument('-logfile', '--logfile', help='Log table of used instructions to file')
 # arg_parser.add_argument('-l', '--log-special', help="""log various changes (const synthesis,
 #                         register usage for emulating features, etc.)
 #                         (not yet available)""",
 #                         action="store_true")
 args = arg_parser.parse_args()
+
+if args.logfile and not args.annot_source:
+    print('ERROR: Logging cannot be used without annotation enabled!')
+    exit(1)
 
 # Build map of opcodes to their handling instruction subclasses
 instructions = {}
@@ -112,6 +118,7 @@ for i, line in enumerate(buffer):
         memguards_loads.append([])
         memguards_stores.append([])
 
+
 # third pass: emit
 for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
     if Arm64Instruction in type(line).__mro__:
@@ -128,7 +135,43 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
             # replace first space with tab for cleaner formatting
             st = st.replace(' ', '\t', 1)
             print(f'\t{st} # store of mmapped register')
+
     else:
         if line.strip().startswith('.xword'):  # = dword, but not recognized on RV
             line = line.replace('.xword', '.dword', 1)
         print(line.rstrip())
+
+# NEW: Adding option to put out table of all instruction conversions
+# THIS MUST BE USED WITH ANNOT, we have a check for that at the top
+if not args.logfile:
+    exit(0)
+
+log_buffer = []
+# We will do this as an extra pass
+for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
+    if Arm64Instruction in type(line).__mro__:
+        translation = ''
+        for ld in loads:
+            # replace first space with tab for cleaner formatting
+            ld = ld.replace(' ', '\t', 1)
+            translation += f'{ld} # load of mmapped register\n'
+        # line.emit_riscv()
+        for l in line.riscv_instructions:
+            # replace first space with tab for cleaner formatting
+            fl = l.replace(' ', '\t', 1)
+            translation += f'{fl}\n'
+        for st in stores:
+            # replace first space with tab for cleaner formatting
+            st = st.replace(' ', '\t', 1)
+            translation += f'{st} # store of mmapped register\n'
+        prev_line = prev_line.replace('#', '').strip()
+        prev_inst = prev_line.split()[0]
+        log_buffer.append(
+            [prev_inst, prev_line.replace('#','').strip(), translation.strip()]
+        )
+    elif line.strip().startswith('#'):
+        prev_line = line
+
+with open(args.logfile, 'a') as f:
+    wtr = csv.writer(f)
+    wtr.writerows(log_buffer)

@@ -104,7 +104,7 @@ class Arm64Instruction:
     def emit_riscv(self):
         for immediate, reg in zip(self.needs_synthesis, self.required_temp_regs):
             self.riscv_instructions.append(
-                f'li {reg}, {immediate}'
+                f'li {reg}, {immediate} # synthesis of oversized offset'
             )
 
         if self.set_offset_reg:
