@@ -30,7 +30,10 @@ for fn in tqdm(code_files):
         print('failed on build', fn)
         exit(1)
 
-    subprocess.check_call(f'aarch64-linux-gnu-gcc {fn} -march=armv8.3-a -static -pthread -o {bin_path}_basic.out', shell=True)
+    tflag = '-pthread' if 'thread' in fn else ''
+    
+
+    subprocess.check_call(f'aarch64-linux-gnu-gcc {fn} -march=armv8.3-a -static {tflag} -o {bin_path}_basic.out', shell=True)
     transpiled = subprocess.check_output(f'qemu-riscv64-static {bin_path}_transpiled.out', shell=True)
     basic = subprocess.check_output(f'qemu-aarch64-static {bin_path}_basic.out', shell=True)
 
