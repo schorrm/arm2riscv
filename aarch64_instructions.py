@@ -263,7 +263,7 @@ class MoveWideWithKeep(Arm64Instruction):
         dest = self.specific_regs[0]
         imm = self.operands[1]['immediate']
         self.riscv_instructions = [
-            f'not {temp}, x0 # set reg to all ones' 
+            f'not {temp}, x0 # set reg to all ones',
             f"srli {temp}, {temp}, 48 # this clears the upper 48 bits in the mask. We'll invert it to get the final mask",
             f"li {shift_temp}, {imm} # load our immediate value"
         ]
@@ -273,8 +273,8 @@ class MoveWideWithKeep(Arm64Instruction):
                 f'slli {temp}, {temp}, {self.shamt} # move the mask to the parallel place'
             ]
         self.riscv_instructions += [
-            f'not {temp}, {temp} # flip the mask to AND against'
-            f'and {dest}, {dest}, {temp} # clear the target bits in mask'
+            f'not {temp}, {temp} # flip the mask to AND against',
+            f'and {dest}, {dest}, {temp} # clear the target bits in mask',
             f'or {dest}, {dest}, {shift_temp} # or in the bits from the immediate to load'
         ]
 
@@ -689,7 +689,7 @@ class FloatingPointConvert(Arm64Instruction):
         float_dest, integer_src = self.specific_regs
         wl = 'w' if is_half_width(self.operands[1]) else 'l'
         self.riscv_instructions = [
-            f'fcvt.s.{wl}{unsigned} {float_dest}, {integer_src}'
+            f'fcvt.d.{wl}{unsigned} {float_dest}, {integer_src}'
         ]
 
 class FloatingPointCompare(Arm64Instruction):
