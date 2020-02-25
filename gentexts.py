@@ -10,7 +10,7 @@ from tabulate import tabulate
 
 import pandas as pd
 
-TEXT_DIR = 'testing/texts'
+TEXT_DIR = 'docs/asm_examples'
 CODE_DIR = 'testing/code'
 if not os.path.isdir(TEXT_DIR):
     os.mkdir(TEXT_DIR)
