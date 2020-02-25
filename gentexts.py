@@ -40,9 +40,7 @@ df = pd.read_csv(logfile, names=['Opcode', 'Instruction', 'Translation'])
 df.sort_values('Opcode', inplace=True)
 df = df.drop_duplicates(subset=['Opcode'])
 df.reset_index(inplace=True, drop=True)
-for col in ['Opcode', 'Instruction']:
-    df[col] = [f'`{x}`' for x in df[col]]
-df['Translation'] = [f'```{x}```' for x in df.Translation]
-table = tabulate(df, tablefmt='github')
-with open(logtable, 'w') as f:
-    f.write(table)
+for col in ['Opcode', 'Instruction', 'Translation']:
+    df[col] = [f'```asm\n{x}\n```' for x in df[col]]
+# df['Translation'] = [f'```asm\n{x}\n```' for x in df.Translation]
+df.to_html('table.html')
