@@ -42,6 +42,8 @@ class Arm64Instruction:
         self.opcode = opcode
         self.operands = operands
         self.required_temp_regs = []
+        
+        # Get our registers and types (these are recurring patterns)
         self.specific_regs = safe_pullregs(operands)
         self.operand_types = pulltypes(operands)
         # used for checking which virtualized registers to write
@@ -104,7 +106,7 @@ class Arm64Instruction:
     def emit_riscv(self):
         for immediate, reg in zip(self.needs_synthesis, self.required_temp_regs):
             self.riscv_instructions.append(
-                f'li {reg}, {immediate} # synthesis of oversized offset'
+                f'li {reg}, {immediate} # synthesis of oversized immediate'
             )
 
         if self.set_offset_reg:
@@ -112,7 +114,7 @@ class Arm64Instruction:
             x = self.specific_regs[x]
             y = self.specific_regs[y]
             self.riscv_instructions.append(
-                f'add {self.required_temp_regs[-1]}, {x}, {y} # dealt with reg offset'
+                f'add {self.required_temp_regs[-1]}, {x}, {y} # converting offset register to add'
             )
 
 
@@ -147,7 +149,7 @@ class SignExtendWord(Arm64Instruction):
 
 
 class BranchAndLink(Arm64Instruction):
-    """BL is completely equivalent to a call
+    """BL is completely equivalent to a 'call'
     """
     opcodes = ['bl']
 
@@ -233,8 +235,9 @@ class MoveNot(Arm64Instruction):
             f'not {dest}, {dest}'
         ]
 
+
 class MoveWideWithKeep(Arm64Instruction):
-    ''' MovK
+    ''' MOVK --> A relatively complex sequence of operations
     Arm64 docs: 
     "Move wide with keep moves an optionally-shifted 16-bit immediate value into a register, keeping other bits unchanged."
     (https://developer.arm.com/docs/ddi0596/e/base-instructions-alphabetic-order/movk-move-wide-with-keep)
@@ -246,18 +249,18 @@ class MoveWideWithKeep(Arm64Instruction):
     Yay Turing Machines!
     '''
     opcodes = ['movk']
-    imm_width = 64 # we will handle our own immediates here
+    imm_width = 64  # we will handle our own immediates here
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         self.required_temp_regs = ['temp', 'shift_temp']
         self.shift = False
-        if len(self.operands) > 2: # Not just a movk, but shifted
+        if len(self.operands) > 2:  # Not just a movk, but shifted
             self.shift = True
             # Operands are e.g. movk    x0, 0x41df, lsl 48
-            # We never need to pull the shift, since it can only be LSL 
+            # We never need to pull the shift, since it can only be LSL
             self.shamt = self.operands[3]['immediate']
-    
+
     def emit_riscv(self):
         temp, shift_temp = self.required_temp_regs
         dest = self.specific_regs[0]
@@ -277,7 +280,6 @@ class MoveWideWithKeep(Arm64Instruction):
             f'and {dest}, {dest}, {temp} # clear the target bits in mask',
             f'or {dest}, {dest}, {shift_temp} # or in the bits from the immediate to load'
         ]
-
 
 
 class LoadStorePair(Arm64Instruction):
@@ -314,7 +316,7 @@ class LoadStorePair(Arm64Instruction):
 
         if self.final_offset:
             self.riscv_instructions.append(
-                f'addi {sp}, {sp}, {self.final_offset}'
+                f'addi {sp}, {sp}, {self.final_offset} # writeback'
             )
 
 
@@ -516,11 +518,11 @@ class LoadStoreRegister(Arm64Instruction):
         if self.final_offset:
             if self.required_temp_regs:
                 self.riscv_instructions.append(
-                    f'mv {sp}, {load_src}'
+                    f'mv {sp}, {load_src} # writeback'
                 )
             else:
                 self.riscv_instructions.append(
-                    f'addi {sp}, {sp}, {final_offset}'
+                    f'addi {sp}, {sp}, {final_offset} # writeback'
                 )
 
 
@@ -551,8 +553,8 @@ class ConditionalBranch(Arm64Instruction):
     opcodes = ['ble', 'blt', 'bge', 'bgt', 'beq', 'bne', 'bpl', 'bhi']
 
     opmap = dict(zip(opcodes, opcodes))
-    opmap['bpl'] =  'bge'
-    opmap['bhi'] =  'bgt'
+    opmap['bpl'] = 'bge'
+    opmap['bhi'] = 'bgt'
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
@@ -581,15 +583,12 @@ class ConditionalBranchNonZero(Arm64Instruction):
             f'bne {r}, x0, {target}'
         ]
 
-# Conditional operations
-# Note: pray that '999999' is not being used as a numeric label elsewhere.
-# We only go forward so multiple csels won't matter
-# TODO: add checking for the numeric local in cleanup
-
 
 class ConditionalSelect(Arm64Instruction):
     """Conditional Select uses a local branch to guard the condition
-
+    Note: pray that '999999' is not being used as a numeric label elsewhere.
+    We only go forward so multiple csels won't matter
+    TODO: add checking for the numeric local in cleanup
     """
     opcodes = ['csel']
 
@@ -653,7 +652,8 @@ class BitwiseOperations(Arm64Instruction):
 
 
 class Nop(Arm64Instruction):
-    """ As simple as it gets"""
+    """ This is pretty self-explanatory
+    """
     opcodes = ['nop']
 
     def __init__(self, opcode, operands):
@@ -679,6 +679,7 @@ class FloatingPointMove(Arm64Instruction):
             f'{self.op} {dest}, {src}'
         ]
 
+
 class FloatingPointConvert(Arm64Instruction):
     ''' Things like UCVTF, SCVTF -- converting from fixed point or integer
     '''
@@ -692,16 +693,17 @@ class FloatingPointConvert(Arm64Instruction):
             f'fcvt.d.{wl}{unsigned} {float_dest}, {integer_src}'
         ]
 
+
 class FloatingPointCompare(Arm64Instruction):
     ''' Floating point compare
     Requires a couple tricks to synthesize the compare result as an int.
-    '''    
+    '''
     opcodes = ['fcmpe', 'fcmp']
 
     def __init__(self, opcode, operands):
         super().__init__(opcode, operands)
         self.specific_regs.append(COMPARE)
-        self.required_temp_regs = ['temp'] # we need the temp to get the two results in
+        self.required_temp_regs = ['temp']  # we need the temp to get the two results in
 
     def emit_riscv(self):
         arg1, arg2, compare = self.specific_regs
@@ -713,7 +715,6 @@ class FloatingPointCompare(Arm64Instruction):
             f'flt.d {temp}, {arg2}, {arg1} # if LHS is bigger',
             f'or {compare}, {compare}, {temp} # or the results together',
         ]
-
 
 
 class FloatingPointSimplex(Arm64Instruction):
@@ -755,8 +756,9 @@ class FloatingPointFused(Arm64Instruction):
         ]
 
 
-class AtomicLoad(Arm64Instruction):
-    ''' Atomic load ops - direct 1:1
+class AtomicLoadExclusive(Arm64Instruction):
+    ''' LDAXR has a direct parallel -- LR = 'load-reserved' in RISC-V.
+    This is an atomic.
     '''
     opcodes = ['ldaxr']
 
@@ -765,20 +767,6 @@ class AtomicLoad(Arm64Instruction):
         size = 'w' if self.wflag else 'd'
         self.riscv_instructions = [
             f'lr.{size} {dst}, {self.offset}({src})'
-        ]
-
-
-class LoadAcquireFence(Arm64Instruction):
-    ''' Atomic load ops - direct 1:1
-    '''
-    opcodes = ['ldar']
-
-    def emit_riscv(self):
-        dst, src = self.specific_regs
-        size = 'w' if self.wflag else 'd'
-        self.riscv_instructions = [
-            f'l{size} {dst}, {self.offset}({src})',
-            f'fence iorw,iorw # making implicit fence semantics explicit',
         ]
 
 
@@ -792,6 +780,20 @@ class AtomicStoreExclusive(Arm64Instruction):
         size = 'w' if self.wflag else 'd'
         self.riscv_instructions = [
             f'sc.{size} {dst}, {desired}, {self.offset}({addr})'
+        ]
+
+
+class LoadAcquireFence(Arm64Instruction):
+    ''' LDAR is has an implicit fence semantic. We make it explicit here.
+    '''
+    opcodes = ['ldar']
+
+    def emit_riscv(self):
+        dst, src = self.specific_regs
+        size = 'w' if self.wflag else 'd'
+        self.riscv_instructions = [
+            f'l{size} {dst}, {self.offset}({src})',
+            f'fence iorw,iorw # making implicit fence semantics explicit',
         ]
 
 
