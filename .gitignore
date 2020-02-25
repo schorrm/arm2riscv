@@ -105,3 +105,6 @@ venv.bak/
 
 # Stuff from IDEs &c
 .vscode/
+
+# Ignoring the built binaries from the test
+testing/bin/
