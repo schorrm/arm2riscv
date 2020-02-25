@@ -25,10 +25,8 @@ arg_parser.add_argument("-p", "--permissive", help="allow untranslated operation
 arg_parser.add_argument("-xnames", "--xnames", help="Use xnames instead of ABI names",
                         action="store_true")
 arg_parser.add_argument('-logfile', '--logfile', help='Log table of used instructions to file')
-# arg_parser.add_argument('-l', '--log-special', help="""log various changes (const synthesis,
-#                         register usage for emulating features, etc.)
-#                         (not yet available)""",
-#                         action="store_true")
+arg_parser.add_argument('-vi', '--view-instructions', help="List opcodes with defined conversions and exit",
+                        action="store_true")
 args = arg_parser.parse_args()
 
 if args.logfile and not args.annot_source:
@@ -40,6 +38,11 @@ instructions = {}
 for ins in Arm64Instruction.__subclasses__():
     for opcode in ins.opcodes:
         instructions[opcode] = ins
+
+if args.view_instructions:
+    for i, opcode in enumerate(sorted(instructions.keys()), 1):
+        print(f'{i}.\t{opcode}')
+    exit(0)
 
 transformer = TreeToDict()
 
@@ -67,9 +70,9 @@ for line in sys.stdin:
         opcode = d['operation']['opcode']
         if opcode not in instructions.keys():
             if not args.permissive:
-                raise InstructionNotRecognized(opcode) # end program if in restrictive mode
+                raise InstructionNotRecognized(opcode)  # end program if in restrictive mode
             else:
-                buffer.append(line.rstrip() + '\t!!!!!') # print the line with a warning sequence
+                buffer.append(line.rstrip() + '\t!!!!!')  # print the line with a warning sequence
                 continue
 
         operands = [cleanup(operand) for operand in d['operation']['operands']]
@@ -167,7 +170,7 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
         prev_line = prev_line.replace('#', '').strip()
         prev_inst = prev_line.split()[0]
         log_buffer.append(
-            [prev_inst, prev_line.replace('#','').strip(), translation.strip()]
+            [prev_inst, prev_line.replace('#', '').strip(), translation.strip()]
         )
     elif line.strip().startswith('#'):
         prev_line = line
