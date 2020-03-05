@@ -260,7 +260,7 @@ slli    x6, x22, 5
 
 ## Table of Examples
 
-<table border="1" class="dataframe">
+<table border="1">
   <thead>
     <tr>
       <th></th>
