@@ -46,20 +46,63 @@ HEXNUM: HEXDIGIT+
 %import common.WS
 %import common.WS_INLINE
 %import common.NEWLINE
-%import .grammar.arm_globals.addr_mode
-%import .grammar.arm_globals.register
-%import .grammar.arm_globals.float_reg
-%import .grammar.arm_globals.float16
-%import .grammar.arm_globals.float32
-%import .grammar.arm_globals.double64
-%import .grammar.arm_globals.half_reg
-%import .grammar.arm_globals.full_reg
-%import .grammar.arm_globals.writeback
-%import .grammar.arm_globals.condition_code
-%import .grammar.arm_globals.shift_type
 SLCOMMENT: "//" /.*/ 
 COMMENT: ";" /[^\n]/*
 %ignore WS
 %ignore COMMENT
 %ignore SLCOMMENT
 %ignore ","
+
+addr_mode: ADDR_MODE
+ADDR_MODE: "IA"
+    | "IB"
+    | "DA"
+    | "DB"
+
+// addr_mode: 
+//     | "IA" -> ia
+//     | "IB" -> ib
+//     | "DA" -> da
+//     | "DB" -> db
+
+writeback: "!"
+
+condition_code: CCODE
+
+CCODE: "EQ" // Z set	Equal
+    | "NE" // Z clear	Not equal
+    | "CS" // or HS	C set	Higher or same (unsigned >= )
+    | "CC" // or LO	C clear	Lower (unsigned < )
+    | "MI" // N set	Negative
+    | "PL" // N clear	Positive or zero
+    | "VS" // V set	Overflow
+    | "VC" // V clear	No overflow
+    | "HI" // C set and Z clear	Higher (unsigned >)
+    | "LS" // C clear or Z set	Lower or same (unsigned <=)
+    | "GE" // N and V the same	Signed >=
+    | "LT" // N and V differ	Signed <
+    | "GT" // Z clear, N and V the same	Signed >
+    | "LE" // Z set, N and V differ	Signed <=
+    | "AL" // Any	Always. This suffix is normally omitted.
+
+
+register: half_reg | full_reg | float_reg
+
+float_reg: float16 | float32 | double64
+float16: FL16
+FL16: "h" + NUMBER
+float32: FL32 
+FL32: "s" + NUMBER
+double64: FL64
+FL64: "d" + NUMBER
+
+half_reg: HALFREG 
+HALFREG: "w" + NUMBER | "wzr"
+full_reg:  FULLREG
+FULLREG: "x" + NUMBER | "xzr" | NAMED_REG
+
+NAMED_REG: "sp" | "fp" | "lr" | "xr"
+
+shift_type: SHIFT_TYPE
+SHIFT_TYPE:  "lsl" | "lsr" | "asr" | "ror" | "rrx"
+

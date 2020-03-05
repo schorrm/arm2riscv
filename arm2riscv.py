@@ -3,19 +3,19 @@
 # The initial component: convert a file to a dict representation of the machine code
 
 from lark import Lark, Transformer
+
 from convert_parse_tree import TreeToDict
 from register_map import register_map, mode_map, base_register_map
-import sys
 from utils import *
 from helper_methods import *
 
-import copy
-from tqdm import tqdm
+import sys
 import csv
+import os
+import argparse
 
 from aarch64_instructions import Arm64Instruction
 
-import argparse
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument("-annot", "--annot-source", help="show original lines as comments",
@@ -45,8 +45,11 @@ if args.view_instructions:
     exit(0)
 
 transformer = TreeToDict()
-
-with open('grammar/grammar_arm.lark') as f:
+grammar_file = os.path.join(
+    os.path.dirname(__file__),
+    'grammar/grammar_arm.lark'
+)
+with open(grammar_file) as f:
     grammar = f.read()
 
 l = Lark(grammar, parser='earley')
