@@ -1,4 +1,4 @@
-# An Arm to RISC-V Transpiler
+# arm2riscv: An Arm to RISC-V Transpiler
 
 Moshe Schorr and Matan Ivgi
 
