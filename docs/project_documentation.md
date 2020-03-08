@@ -19,7 +19,7 @@ available for it.
 
 A *transpiler* is a tool that translates code between different
 languages with an equivalent level of abstraction (in our case: assembly
-to assembly), as a opposed to a compiler, which translates code from a
+to assembly), as opposed to a compiler, which translates code from a
 higher level of abstraction to a lower one.
 
 Transpiling can allow, in some cases, direct porting of existing legacy
@@ -31,7 +31,7 @@ to a new architecture.
 
 ### Goals and Definitions
 
-The goal for this project was to create a transpiler that can convert
+The goal for this project was to create a transpiler that can
 convert moderately complex assembly code from Arm to RISC-V.
 
 - 'Arm' here is defined as Arm's AArch64 ISA, including the atomic
@@ -82,7 +82,7 @@ fused compare-and-branch model used by RISC-V.
 
 - Many minor details: different assembly format rules, etc....
 
-The first three problems encouraged us to come up a general solution that
+The first three problems encouraged us to come up with a general solution that
 would treat this problems as one issue, namely, "the complex structure of
 Arm assembly" (or, for that matter, "the simple structure of RISC-V
 assembly").
@@ -116,9 +116,9 @@ This consists of several parts:
         handle the virtualized registers as needed.
 
 2. Assign registers
-    1. We mapping the names of registers (e.g. x0 --> x10) on the conversion
+    1. We are mapping the names of registers (e.g. x0 --> x10) on the conversion
     classes.
-    2. We receive from the conversion classes which virtualized registers they,
+    2. We receive from the conversion classes which virtualized registers they used,
     modify, and then emit loads and stores accordingly.
 
 3. We poll the classes to emit their corresponding RISC-V instructions.
@@ -143,7 +143,7 @@ is translated into a `sub` instruction that stores the result in S9).
 
 The bank is at the size of 8 doublewords (=64 bits), 1 for the extra register
 in the Arm architecture and 7 more for the 7 registers mentioned above. When
-invoking a instruction using an Arm register that was would by a straight mapping
+invoking an instruction using an Arm register that was would by a straight mapping
 of the calling convention be mapped to one of the above registers, or to a
 register without a corresponding one in RISC-V, the X22, X23, or X24 registers are
 used to hold them to operate on (since RISC-V does not allow direct operations
