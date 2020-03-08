@@ -495,10 +495,9 @@ class LoadStoreRegister(Arm64Instruction):
         else:  # Signed Offset
             self.final_offset = None
 
-        # TODO: check the specifics of relocation well
         if sp.get('original_mode'):
             if 'got' in sp['original_mode']:  # GOT -- relocation
-                self.base_op = 'add'
+                self.base_op = 'add' # this is weird but that's what the Arm docs say 🤷🏻‍♂️
                 self.offset = sp['offset']
 
     def emit_riscv(self):
@@ -506,7 +505,7 @@ class LoadStoreRegister(Arm64Instruction):
         dest, sp, *reg_offset = self.specific_regs
         if self.base_op == 'add':
             self.riscv_instructions.append(
-                f'{self.base_op} {dest}, {sp}, {self.offset}'
+                f'{self.base_op} {dest}, {sp}, {self.offset} # load from GOT -> ADD!'
             )
             return
         load_src = sp

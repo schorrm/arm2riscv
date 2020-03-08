@@ -10,6 +10,8 @@ base_tempregs = ['x22', 'x23', 'x24']
 base_membase_ptr = 'x21'
 
 # TODO: add example here
+
+
 def allocate_registers(registers, n_writes, use_base=False):
     ''' issue loads and stores for operations on memory mapped registers
     '''
@@ -23,57 +25,35 @@ def allocate_registers(registers, n_writes, use_base=False):
     for i in range(len(registers)):
         r = registers[i]
         mapped = _register_map[r]
-        if type(mapped) == int: # mapper gives the offset instead of a string name for mmapped registers
+        if type(mapped) == int:  # mapper gives the offset instead of a string name for mmapped registers
             offset = mapped
             loads.append(
-                f'ld {_tempregs[current]}, {offset}({_membase_ptr})' # RISC-V load of mmapped
+                f'ld {_tempregs[current]}, {offset}({_membase_ptr})'  # RISC-V load of mmapped
             )
             if i < n_writes:
                 stores.append(
-                    f'sd {_tempregs[current]}, {offset}({_membase_ptr})' # RISC-V store mmapped
+                    f'sd {_tempregs[current]}, {offset}({_membase_ptr})'  # RISC-V store mmapped
                 )
             registers[i] = _tempregs[current]
             current += 1
         else:
             registers[i] = mapped
-    return loads, stores  
+    return loads, stores
 
 
-# TODO: Move to transformer
+# DONE: Move to transformer
 # Note before / after
-def cleanup(operand):
-    operand['operand']['writeback'] = operand['writeback']
-    operand = operand['operand']
-    if 'proc_load' in operand.keys():
-        operand['original_mode'] = operand['proc_load']['mode']
-        mode = mode_map[operand['proc_load']['mode']]
-        label = operand['proc_load']['label']['label']
-        operand['label'] = f'%{mode}({label})'
-        operand['is_load'] = True
+# NOTE: function was nerfed altogether!
 
-    elif 'offset' in operand.keys():
-        if type(operand['offset']) == dict:
-            if 'proc_load' in operand['offset'].keys():
-                operand['original_mode'] = operand['offset']['proc_load']['mode']
-                mode = mode_map[operand['offset']['proc_load']['mode']]
-                label = operand['offset']['proc_load']['label']['label']
-                operand['offset'] = f'%{mode}({label})'
-   
-    return operand
-
-def get_shifts(operand): # use after cleanup
+# Modified: just get the shifts, no longer mutating the tree
+def get_shifts(operand):
     if 'shift' in operand.keys():
-        shift = copy.deepcopy(operand['shift'])
-        operand = operand['shift']['shift_reg']
-        operand['register'] = 'shift_temp'
+        shift = operand['shift']
         return shift
 
     elif 'offset' in operand.keys():
         if type(operand['offset']) == dict:
             if 'shift' in operand['offset'].keys():
-                shift = copy.deepcopy(operand['offset']['shift'])
-                operand['offset'] = operand['offset']['shift']['shift_reg']
-                operand['offset']['register'] = 'shift_temp'
+                shift = operand['offset']['shift']
                 return shift
-    
     return None
