@@ -9,11 +9,20 @@ membase_ptr = 's5'
 base_tempregs = ['x22', 'x23', 'x24']
 base_membase_ptr = 'x21'
 
-# TODO: add example here
-
 
 def allocate_registers(registers, n_writes, use_base=False):
     ''' issue loads and stores for operations on memory mapped registers
+        Example of allocate:
+            lsl   x10, x18, 5
+        becomes:
+            ld      s6, 8(s5) # load of mmapped register
+            slli    t1, s6, 5
+        Or, 
+            mov   x18, x1
+        becomes:
+            ld      s6, 8(s5) # load of mmapped register
+            mv      s6, a1
+            sd      s6, 8(s5) # store of mmapped register
     '''
 
     _register_map = base_register_map if use_base else register_map
