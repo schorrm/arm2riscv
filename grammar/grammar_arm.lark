@@ -17,21 +17,32 @@ operand: (reglist
 
 dotlabel: DOTLABEL 
 DOTLABEL: "." CNAME
+
 reglist: "{" (register | register_range)+ "}"  // ARM v7
 register_range: register "-" register
+
 indirect: "[" register offset? "]"
 offset: immediate | proc_load | register | shifted_register
 immediate: imm_value  | "#" imm_value
+
 address: "=" imm_value
+
 ?imm_value:  hex_val | dec_val
 hex_val.2: "0x" HEXNUM
 ?dec_val: NUMBER | SIGNED_NUMBER
+
 label_target: CNAME | DOTLABEL
 shifted_register: register shift_type shift_by?
 shift_by: immediate | register
-opcode: CNAME
+
+// opcode: CNAME
+opcode: CDNAME
+CDNAME: ("_"|LETTER) ("_"|"."|LETTER|DIGIT)* // adding dot for b.eq
+
 proc_load: ":" mode ":" label_target | "#:" mode ":" label_target
+
 target: dotlabel | label_target
+
 mode: CNAME
 // MODE: "lo12" | "pg_hi21"
 
