@@ -100,4 +100,3 @@ base_register_map = register_map.copy()
 for k, v in base_register_map.items():
     if v in abi_to_base.keys():
         base_register_map[k] = abi_to_base[v]
-

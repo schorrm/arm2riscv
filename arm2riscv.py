@@ -80,7 +80,7 @@ for line in sys.stdin:
                 buffer.append(line.rstrip() + '\t!!!!!')  # print the line with a warning sequence
                 continue
 
-        operands = [cleanup(operand) for operand in d['operation']['operands']]
+        operands = d['operation']['operands']
         shifts = None
         for operand in operands:
             # Find shifted registers and pull them out and
@@ -114,10 +114,12 @@ buffer.insert(1, reg_labels)
 memguards_loads = []
 memguards_stores = []
 
+use_register_map = base_register_map if args.xnames else register_map
+
 # second pass: convert registers
 for i, line in enumerate(buffer):
     if Arm64Instruction in type(line).__mro__:
-        line.required_temp_regs = [register_map[r]
+        line.required_temp_regs = [use_register_map[r]
                                    for r in line.required_temp_regs]
         loads, stores = allocate_registers(line.specific_regs, line.num_reg_writes, args.xnames)
         memguards_loads.append(loads)
