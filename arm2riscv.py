@@ -44,21 +44,23 @@ if args.view_instructions:
         print(f'{i}.\t{opcode}')
     exit(0)
 
-transformer = TreeToDict()
-grammar_file = os.path.join(
-    os.path.dirname(__file__),
-    'grammar/grammar_arm.lark'
-)
-with open(grammar_file) as f:
-    grammar = f.read()
-
-l = Lark(grammar, parser='earley')
 
 buffer = []
 
 ops = set()
 
 COMCHAR = '#'  # define comment character
+
+grammar_file = os.path.join(
+    os.path.dirname(__file__),
+    'grammar/grammar_arm.lark'
+)
+
+with open(grammar_file) as f:
+    grammar = f.read()
+
+l = Lark(grammar, parser='earley')
+transformer = TreeToDict()
 
 # first pass: setup buffer with objects
 for line in sys.stdin:
