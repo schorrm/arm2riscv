@@ -132,20 +132,11 @@ for i, line in enumerate(buffer):
 # third pass: emit
 for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
     if Arm64Instruction in type(line).__mro__:
-        for ld in loads:
-            # replace first space with tab for cleaner formatting
-            ld = ld.replace(' ', '\t', 1)
-            print(f'\t{ld} # load of mmapped register')
         line.emit_riscv()
-        for l in line.riscv_instructions:
+        for converted_line in loads + line.riscv_instructions + stores:
             # replace first space with tab for cleaner formatting
-            fl = l.replace(' ', '\t', 1)
-            print(f'\t{fl}')
-        for st in stores:
-            # replace first space with tab for cleaner formatting
-            st = st.replace(' ', '\t', 1)
-            print(f'\t{st} # store of mmapped register')
-
+            converted_line = converted_line.replace(' ', '\t', 1)
+            print(f'\t{converted_line}')
     else:
         if line.strip().startswith('.xword'):  # = dword, but not recognized on RV
             line = line.replace('.xword', '.dword', 1)
@@ -161,19 +152,11 @@ log_buffer = []
 for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
     if Arm64Instruction in type(line).__mro__:
         translation = ''
-        for ld in loads:
+        for converted_line in loads + line.riscv_instructions + stores:
             # replace first space with tab for cleaner formatting
-            ld = ld.replace(' ', '\t', 1)
-            translation += f'{ld} # load of mmapped register\n'
-        # line.emit_riscv()
-        for l in line.riscv_instructions:
-            # replace first space with tab for cleaner formatting
-            fl = l.replace(' ', '\t', 1)
-            translation += f'{fl}\n'
-        for st in stores:
-            # replace first space with tab for cleaner formatting
-            st = st.replace(' ', '\t', 1)
-            translation += f'{st} # store of mmapped register\n'
+            converted_line = converted_line.replace(' ', '\t', 1)
+            print(f'\t{converted_line}')
+        
         prev_line = prev_line.replace('#', '').strip()
         prev_inst = prev_line.split()[0]
         log_buffer.append(

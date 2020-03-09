@@ -37,11 +37,11 @@ def allocate_registers(registers, n_writes, use_base=False):
         if type(mapped) == int:  # mapper gives the offset instead of a string name for mmapped registers
             offset = mapped
             loads.append(
-                f'ld {_tempregs[current]}, {offset}({_membase_ptr})'  # RISC-V load of mmapped
+                f'ld {_tempregs[current]}, {offset}({_membase_ptr}) # load of mmapped register'
             )
             if i < n_writes:
                 stores.append(
-                    f'sd {_tempregs[current]}, {offset}({_membase_ptr})'  # RISC-V store mmapped
+                    f'sd {_tempregs[current]}, {offset}({_membase_ptr}) # store of mmapped register'
                 )
             registers[i] = _tempregs[current]
             current += 1
