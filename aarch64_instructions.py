@@ -39,10 +39,12 @@ class Arm64Instruction:
         return False
 
     def __init__(self, opcode, operands):
+        ''' Class initializer, has a lot of convenience methods to allow simpler inheriting classes
+        '''
         self.opcode = opcode
         self.operands = operands
         self.required_temp_regs = []
-        
+
         # Get our registers and types (these are recurring patterns)
         self.specific_regs = safe_pullregs(operands)
         self.operand_types = pulltypes(operands)
@@ -59,23 +61,24 @@ class Arm64Instruction:
 
         # See if this can be made cleaner
         for operand in operands:
-            if self.is_oversized_imm(operand):
+            offset = operand.get('offset')
+            if self.is_oversized_imm(operand):  # mark oversized immediates for synthesis
                 self.needs_synthesis.append(operand['immediate'])
                 self.required_temp_regs.append(OP2_OVERSIZE)
 
-            elif 'offset' in operand.keys():
-                if self.is_oversized_int(operand['offset']):
-                    self.needs_synthesis.append(operand['offset'])
+            elif offset:  # offset registers may be offset by an oversized amount
+                if self.is_oversized_int(offset):  # mark oversized offsets for synthesis
+                    self.needs_synthesis.append(offset)
                     self.required_temp_regs.append(OP2_OVERSIZE)
                     self.set_offset_reg = (
                         len(self.specific_regs), self.specific_regs.index(operand['register']))
                     self.specific_regs.append(OP2_OVERSIZE)
-                elif type(operand['offset']) == int:
-                    self.offset = operand['offset']
-                elif isreg(operand['offset']):
+                elif type(offset) == int:  # not oversized
+                    self.offset = offset
+                elif isreg(offset):  # offset *by* a register
                     self.set_offset_reg = (
                         len(self.specific_regs), self.specific_regs.index(operand['register']))
-                    self.specific_regs.append(operand['offset']['register'])
+                    self.specific_regs.append(offset['register'])
                     self.required_temp_regs.append(OP2_OVERSIZE)
 
         self.iflag = 'i' if any(self.is_safe_imm(o) for o in operands) else ''
@@ -497,7 +500,7 @@ class LoadStoreRegister(Arm64Instruction):
 
         if sp.get('original_mode'):
             if 'got' in sp['original_mode']:  # GOT -- relocation
-                self.base_op = 'add' # this is weird but that's what the Arm docs say 🤷🏻‍♂️
+                self.base_op = 'add'  # this is weird but that's what the Arm docs say 🤷🏻‍♂️
                 self.offset = sp['offset']
 
     def emit_riscv(self):
