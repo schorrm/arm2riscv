@@ -68,9 +68,9 @@ for line in sys.stdin:
     d = transformer.transform(tree)
     if not d:  # for empty from comments / weird directives
         continue
+
     if 'operation' in d.keys():
-        if args.annot_source:
-            # add original line as comment
+        if args.annot_source:  # add original line as comment
             buffer.append(f'\t{COMCHAR} {line.strip()}')
         opcode = d['operation']['opcode']
         if opcode not in instructions.keys():
@@ -97,14 +97,14 @@ for line in sys.stdin:
                     instructions[op](
                         op, [tmpreg, shifts['shift_reg'], shifts['shift_by']])
                 )
+        # add instruction class to buffer, instantiated with arguments
         buffer.append(instructions[opcode](opcode, operands))
     else:
         buffer.append(line)
-        if 'label' in d.keys():
-            if d['label'] == 'main:':
-                # inject pointer to register bank on memory
-                mbptr = 's5' if not args.xnames else 'x21'
-                buffer.append(f'\tla\t{mbptr}, REG_BANK')
+        if d.get('label') == 'main:':
+            # inject pointer to register bank on memory
+            mbptr = 's5' if not args.xnames else 'x21'
+            buffer.append(f'\tla\t{mbptr}, REG_BANK')
 
 # Remove arch directive
 if buffer[0].strip().startswith('.arch'):
@@ -156,7 +156,7 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
             # replace first space with tab for cleaner formatting
             converted_line = converted_line.replace(' ', '\t', 1)
             print(f'\t{converted_line}')
-        
+
         prev_line = prev_line.replace('#', '').strip()
         prev_inst = prev_line.split()[0]
         log_buffer.append(
