@@ -16,14 +16,12 @@ import argparse
 
 from aarch64_instructions import Arm64Instruction
 
+COMCHAR = '#'  # define comment character
 
 arg_parser = argparse.ArgumentParser()
-arg_parser.add_argument("-annot", "--annot-source", help="show original lines as comments",
-                        action="store_true")
-arg_parser.add_argument("-p", "--permissive", help="allow untranslated operations",
-                        action="store_true")
-arg_parser.add_argument("-xnames", "--xnames", help="Use xnames instead of ABI names",
-                        action="store_true")
+arg_parser.add_argument("-annot", "--annot-source", help="show original lines as comments", action="store_true")
+arg_parser.add_argument("-p", "--permissive", help="allow untranslated operations", action="store_true")
+arg_parser.add_argument("-xnames", "--xnames", help="Use xnames instead of ABI names", action="store_true")
 arg_parser.add_argument('-logfile', '--logfile', help='Log table of used instructions to file')
 arg_parser.add_argument('-vi', '--view-instructions', help="List opcodes with defined conversions and exit",
                         action="store_true")
@@ -46,10 +44,7 @@ if args.view_instructions:
 
 
 buffer = []
-
 ops = set()
-
-COMCHAR = '#'  # define comment character
 
 grammar_file = os.path.join(
     os.path.dirname(__file__),
@@ -69,18 +64,20 @@ for line in sys.stdin:
     if not d:  # for empty from comments / weird directives
         continue
 
-    if 'operation' in d.keys():
+    operation = d.get('operation')
+
+    if operation:
         if args.annot_source:  # add original line as comment
             buffer.append(f'\t{COMCHAR} {line.strip()}')
-        opcode = d['operation']['opcode']
-        if opcode not in instructions.keys():
+        opcode = operation['opcode']
+        operands = operation['operands']
+        if not instructions.get(opcode):
             if not args.permissive:
                 raise InstructionNotRecognized(opcode)  # end program if in restrictive mode
             else:
                 buffer.append(line.rstrip() + '\t!!!!!')  # print the line with a warning sequence
                 continue
 
-        operands = d['operation']['operands']
         shifts = None
         for operand in operands:
             # Find shifted registers and pull them out and
@@ -92,11 +89,7 @@ for line in sys.stdin:
                     'half_width': shifts['shift_reg']['half_width']
                 }
                 op = shifts['shift_type']
-                # TODO: remove the shift_by if it is RRX
-                buffer.append(
-                    instructions[op](
-                        op, [tmpreg, shifts['shift_reg'], shifts['shift_by']])
-                )
+                buffer.append(instructions[op](op, [tmpreg, shifts['shift_reg'], shifts['shift_by']]))
         # add instruction class to buffer, instantiated with arguments
         buffer.append(instructions[opcode](opcode, operands))
     else:
@@ -155,7 +148,7 @@ for loads, stores, line in zip(memguards_loads, memguards_stores, buffer):
         for converted_line in loads + line.riscv_instructions + stores:
             # replace first space with tab for cleaner formatting
             converted_line = converted_line.replace(' ', '\t', 1)
-            print(f'\t{converted_line}')
+            translation += converted_line
 
         prev_line = prev_line.replace('#', '').strip()
         prev_inst = prev_line.split()[0]
