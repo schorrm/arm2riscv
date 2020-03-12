@@ -6,6 +6,7 @@ from lark import Lark, Transformer
 from register_map import mode_map
 import copy
 
+
 class TreeToDict(Transformer):
     def register(self, r):
         (r,) = r
@@ -21,7 +22,7 @@ class TreeToDict(Transformer):
 
     def opcode(self, o):
         (o,) = o
-        o = o.replace('.','') # Remove dots in opcodes, e.g. b.eq
+        o = o.replace('.', '')  # Remove dots in opcodes, e.g. b.eq
         return {'opcode': str(o)}
 
     def indirect(self, l):
