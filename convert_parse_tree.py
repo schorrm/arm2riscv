@@ -21,6 +21,7 @@ class TreeToDict(Transformer):
 
     def opcode(self, o):
         (o,) = o
+        o = o.replace('.','') # Remove dots in opcodes, e.g. b.eq
         return {'opcode': str(o)}
 
     def indirect(self, l):
