@@ -23,8 +23,9 @@ int main() {
     printf("Multiplication: %lu\n", r.ui);
     r.d = x.d / y.d;
     printf("Divistion: %lu\n", r.ui);
-        // Target the advanced ops:
-
+        
+        
+    // Target the advanced ops:
     asm("fmadd %d[r], %d[x], %d[y], %d[z]"
         : [r] "=w"(r)
         : [x] "w"(x), [y] "w"(y), [z] "w"(z));
