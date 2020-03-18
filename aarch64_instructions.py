@@ -337,8 +337,6 @@ class MultiplyDivide (Arm64Instruction):
     """Combining multiply and divide since should be the same
 
     converting mul, udiv or sdiv: simple 1:1
-    TODO: This class is a lot like Anthony Weiner: There are disasters waiting
-    to happen with sexts. Sign extension / overflow could be very iffy.
     """
     opcodes = ['mul', 'udiv', 'sdiv']
 
