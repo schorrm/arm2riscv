@@ -46,10 +46,7 @@ if args.view_instructions:
 buffer = []
 ops = set()
 
-grammar_file = os.path.join(
-    os.path.dirname(__file__),
-    'grammar/grammar_arm.lark'
-)
+grammar_file = os.path.join(os.path.dirname(__file__), 'grammar/grammar_arm.lark')
 
 with open(grammar_file) as f:
     grammar = f.read()
