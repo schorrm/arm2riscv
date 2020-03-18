@@ -10,6 +10,8 @@ Or use:
 
 `./compile_thru_arm2riscv.sh <file name>`
 
+Run `python3 arm2riscv.py -h` for fuller usage and flags.
+
 ## Test Suite
 
 `python3 test_suite.py` runs the testing.
