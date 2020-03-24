@@ -20,6 +20,8 @@ Run `python3 arm2riscv.py -h` for fuller usage and flags.
 
 *Requires: Python 3.6 or newer*
 
+You can use the [dockerfile](testing/setup_environment.dockerfile), or manually set up a test environment. 
+
 ### Python Dependencies
 
 - lark-parser (`pip install lark-parser`)
