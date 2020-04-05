@@ -604,11 +604,11 @@ class ConditionalSelect(Arm64Instruction):
         dest, s1, s2, cond = self.specific_regs
         temp = self.required_temp_regs[0]
         self.riscv_instructions = [
-            f'add{self.wflag} {temp}, {s1}, x0',
-            f'b{self.cc} {cond}, x0, 999999f',  # f -- only forward.
-            f'add{self.wflag} {temp}, {s2}, x0',
+            f'add{self.wflag} {temp}, {s1}, x0 # move option s1 to temp',
+            f'b{self.cc} {cond}, x0, 999999f # conditionally branch past moving option s2 to temp ',  # f -- only forward.
+            f'add{self.wflag} {temp}, {s2}, x0 # move s2 to temp',
             f'999999:',
-            f'add{self.wflag} {dest}, x0, {temp}'
+            f'add{self.wflag} {dest}, x0, {temp} # move temp to dest'
         ]
 
 
