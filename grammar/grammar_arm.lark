@@ -1,4 +1,4 @@
-start: directive? label? operation?
+start: (directive | label | operation)?
 label: LABEL
 LABEL: CNAME ":" 
 operation: opcode operand*
@@ -23,12 +23,12 @@ register_range: register "-" register
 
 indirect: "[" register offset? "]"
 offset: immediate | proc_load | register | shifted_register
-immediate: imm_value  | "#" imm_value
+immediate.20: imm_value  | "#" imm_value
 
 address: "=" imm_value
 
 ?imm_value:  hex_val | dec_val
-hex_val.2: "0x" HEXNUM
+hex_val.20: "0x" HEXNUM
 ?dec_val: NUMBER | SIGNED_NUMBER
 
 label_target: CNAME | DOTLABEL
