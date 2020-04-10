@@ -365,11 +365,11 @@ csel x0, x10, x11, LE
 <td>
 
 ```asm
-add s11, x6, x0
-ble x25, x0, 999999f
-add s11, x7, x0
+add     x27, x6, x0 # move option s1 to temp
+ble     x25, x0, 999999f # conditionally branch past moving option s2 to temp
+add     x27, x7, x0 # move s2 to temp
 999999:
-add x10, x0, s11
+add     x10, x0, x27 # move temp to dest
 ```
 
 </td>

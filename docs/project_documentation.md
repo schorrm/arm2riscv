@@ -154,6 +154,39 @@ ld      x22, 8(x21) # load of mmapped register
 slli    x6, x22, 5
 ```
 
+## The Final Product
+
+### The Main Script - `arm2riscv.py`
+
+For simplicity of use in a toolchain, we read from `stdin` and write to `stdout`.
+
+Running with the help flag will result in the following output:
+
+```
+usage: arm2riscv.py [-h] [-annot] [-p] [-xnames] [-logfile LOGFILE] [-vi]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -annot, --annot-source
+                        show original lines as comments
+  -p, --permissive      allow untranslated operations
+  -xnames, --xnames     Use xnames instead of ABI names
+  -logfile LOGFILE, --logfile LOGFILE
+                        Log table of used instructions to file
+  -vi, --view-instructions
+                        List opcodes with defined conversions and exit
+```
+
+The `--permissive` flag was added for use cases where conversion may not strictly speaking be possible. For example, system mode conversion cannot really be done without effectively writing a hypervisor, and hence there's no real possibility to convert a read from `SP_EL2` to RISC-V. `--permissive` allows that, it just prints a `!!!!!` warning after, so someone can convert the bulk of their code and then manually replace what isn't simply replaceable.
+
+### Testing and Debugging
+
+Throughout the project, we tested constantly against our test suite ([`test_suite.py`](../test_suite.py)). Our testing methodology was relatively simple: we wrote tests in C that would elicit the relevant opcodes and functions that we were adding. Where this wasn't possible at a high level description, we used compiler intrinsics (used extensively in the thread tests) or inlined assembly (especially for fused floating-point operations). We wrote a test suite to automatically compile and transpile all of our reference code (found in `testing/code`). Each file is compiled to Arm and transpiled through _arm2riscv_ to RISC-V, and then the output (running through `qemu`) is checked to match. We found this method to be very workable as it was both simple and robust. We found that small errors at the assembly level tend to escalate extremely quickly, and a minor offset will tend to lead extremely quickly to a SEGFAULT or some other error.
+
+When we had a failure, we typically debugged it through `qemu`. We would transpile to an assembly file, and place an `unimp` right after our error if it didn't immediately crash the program (`unimp` is valid GCC asm for trapping an unimplemented opcode error at runtime). We did this because this ensured that the relevant logging would always be at the very bottom of the file. By running `qemu -singlestep -d cpu,in_asm` it would log the assembly for every line as well as the resulting CPU state, and then we would go through it line by line to find where we had diverged from our ideal state.
+
+All of our tests are unoptimized (`-O0` flag in GCC). This is intentional, as optimization could easily allow the compiler to propagate constants instead of going through the test benchmarks.
+
 ## Appendices
 
 ### Register Conversion
