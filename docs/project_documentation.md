@@ -137,9 +137,9 @@ pool.
 3. S9 / X25 is the register used for saving the compare results (a `cmp` instruction
 is translated into a `sub` instruction that stores the result in S9).
 
-4. S10 / X26 is used when a barrel shifted register is an operand.
+4. S10 / X26 is used when a barrel shifted register (e.g. `x3 lsl 2`) is an operand.
 
-5. S11 / X27 is used when general temp is required.
+5. S11 / X27 is used when a temporary is required (for example, when we need a mask in `movk`).
 
 The bank is at the size of 8 doublewords (=64 bits), 1 for the extra register
 in the Arm architecture and 7 more for the 7 registers mentioned above. When
@@ -154,7 +154,60 @@ ld      x22, 8(x21) # load of mmapped register
 slli    x6, x22, 5
 ```
 
-## Arm Instructions Currently Supported
+## Appendices
+
+### Register Conversion
+
+The following is a listing of our conversions. For the sake of brevity, w is omitted, but it follows x (e.g. if x6 --> x16, then w6 --> x16, and the width gets moved to the opcode level as RISC-V assembly dictates).
+At the bottom, those are named things that we use to help store things to keep our logical model functional, as described above in 'Register Mapping and Virtualization'. Where there is a number instead of a register, that is the offset of the register in the memory bank.
+`sp` and `ra` were used instead of `x2` and `x1` in all modes, for legibility purposes.
+
+|    | Arm           | RISCV-ABI   | RISCV-NoABI   |
+|---:|:--------------|:------------|:--------------|
+|  0 | x0            | a0          | x10           |
+|  1 | x1            | a1          | x11           |
+|  2 | x2            | a2          | x12           |
+|  3 | x3            | a3          | x13           |
+|  4 | x4            | a4          | x14           |
+|  5 | x5            | a5          | x15           |
+|  6 | x6            | a6          | x16           |
+|  7 | x7            | a7          | x17           |
+|  8 | x8            | s1          | x9            |
+|  9 | x9            | t0          | x5            |
+| 10 | x10           | t1          | x6            |
+| 11 | x11           | t2          | x7            |
+| 12 | x12           | t3          | x28           |
+| 13 | x13           | t4          | x29           |
+| 14 | x14           | t5          | x30           |
+| 15 | x15           | t6          | x31           |
+| 16 | x16           | s11         | x27           |
+| 17 | x17           | 0           | 0             |
+| 18 | x18           | 8           | 8             |
+| 19 | x19           | s2          | x18           |
+| 20 | x20           | s3          | x19           |
+| 21 | x21           | s4          | x20           |
+| 22 | x22           | 16          | 16            |
+| 23 | x23           | 24          | 24            |
+| 24 | x24           | 32          | 32            |
+| 25 | x25           | 40          | 40            |
+| 26 | x26           | 48          | 48            |
+| 27 | x27           | 56          | 56            |
+| 28 | x28           | 64          | 64            |
+| 29 | x29           | s0          | x8            |
+| 30 | x30           | ra          | ra            |
+| 31 | xzr           | x0          | x0            |
+| 32 | sp            | sp          | sp            |
+| 33 | pc            | pc          | pc            |
+|    | Special Usages|             |               |
+| 34 | temp          | s11         | x27           |
+| 35 | shift_temp    | s10         | x26           |
+| 36 | compare       | s9          | x25           |
+| 37 | banked_temp_1 | s6          | x22           |
+| 38 | banked_temp_2 | s7          | x23           |
+| 39 | banked_temp_3 | s8          | x24           |
+| 40 | bank_pointer  | s5          | x21           |
+
+### Arm Instructions Currently Supported
 
 1. add
 2. adrp
