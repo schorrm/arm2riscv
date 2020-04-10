@@ -365,11 +365,12 @@ csel x0, x10, x11, LE
 <td>
 
 ```asm
-add     x27, x6, x0 # move option s1 to temp
-ble     x25, x0, 999999f # conditionally branch past moving option s2 to temp
-add     x27, x7, x0 # move s2 to temp
+add     x27, x6, x0 # move option src1 to temp
+ble     x25, x0, 999999f # conditionally branch past moving option src2 to temp
+add     x27, x7, x0 # move src2 to temp
 999999:
 add     x10, x0, x27 # move temp to dest
+# note: we use 999999 since GCC allocates numeric local labels in order (while reusing where possible). We assume it to be unlikely for a million different numeric local labels to be in use at the same time.
 ```
 
 </td>
