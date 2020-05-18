@@ -2,7 +2,7 @@
 
 Arm AArch64 to RISC-V Transpiler
 
-By Moshe Schorr and Matan Ivgi, supervised by Hillel Mendelson, Shay Aviv, Hernan Theiler, and Tom Kolan at IBM Research Haifa.
+By Moshe Schorr (mosheraphael@gmail.com) and Matan Ivgi (mdivgi@gmail.com), supervised by Hillel Mendelson (hillelm@il.ibm.com), Shay Aviv (Shay.Aviv@ibm.com), Hernan Theiler (Hernan.Theiler@il.ibm.com, and Tom Kolan at IBM Research Haifa.
 
 ## Usage
 
