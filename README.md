@@ -2,6 +2,8 @@
 
 Arm AArch64 to RISC-V Transpiler
 
+By Moshe Schorr and Matan Ivgi, supervised by Hillel Mendelson, Shay Aviv, Hernan Theiler, and Tom Kolan at IBM Research Haifa.
+
 ## Usage
 
 `armgcc -S -o - <input file name> | python3 arm2riscv.py | rvgcc -x assembler - -static`
