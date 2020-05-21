@@ -6,11 +6,11 @@ By Moshe Schorr (mosheraphael@gmail.com) and Matan Ivgi (mdivgi@gmail.com), supe
 
 ## Usage
 
-`armgcc -S -o - <input file name> | python3 arm2riscv.py | rvgcc -x assembler - -static`
+Pipe Arm assembly in, it writes RISC-V assembly to `stdout`. 
 
-Or use:
+For instance, the test code is essentially along the lines of: `armgcc -S -o - <input file name> | python3 arm2riscv.py | rvgcc -x assembler - -static`.
 
-`./compile_thru_arm2riscv.sh <file name>`
+For compiling C to RISC-V through the transpiler, there's a shortcut: `./compile_thru_arm2riscv.sh <file name>`.
 
 Run `python3 arm2riscv.py -h` for fuller usage and flags.
 
