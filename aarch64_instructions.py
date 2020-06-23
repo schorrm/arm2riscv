@@ -140,7 +140,7 @@ class UnsignedMultiplyAddLong(Arm64Instruction):
 
 
 class SignExtendWord(Arm64Instruction):
-    """Convert sign extension, checking new constructor
+    """ Convert sign extension
     """
     opcodes = ['sxtw']
 
