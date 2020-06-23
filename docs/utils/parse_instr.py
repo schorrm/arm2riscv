@@ -2,12 +2,18 @@
 
 from lark import Lark
 import sys
+from pprint import pprint
+sys.path.append('../../')
+
+from convert_parse_tree import TreeToDict
+
 
 if __name__ == "__main__":
-    with open('grammar/grammar_arm.lark') as f:
+    with open('../../grammar/grammar_arm.lark') as f:
         grammar = f.read()
 
     l = Lark(grammar, parser='earley')
+    transformer = TreeToDict()
 
     fn = 'stm_ex.arm'
     if len(sys.argv) > 1:
@@ -18,8 +24,9 @@ if __name__ == "__main__":
     for line in lines:
         print()
         print(line.rstrip())
-        x = l.parse(line)
-        print(x.pretty())
+        tree = l.parse(line)
+        d = transformer.transform(tree)
+        print(tree.pretty())
         print()
-        print(type(x))
+        pprint(d)
         
